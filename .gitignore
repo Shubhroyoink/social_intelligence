@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+social.db
+session_name.session
+*.session
+data/raw/
+data/processed/
+dist/
+build/
+*.egg-info/
