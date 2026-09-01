@@ -3,7 +3,8 @@ from transformers import pipeline
 
 
 MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
-LABELS = {"LABEL_0": "negative", "LABEL_1": "neutral", "LABEL_2": "positive"}
+LABELS = {"negative": "negative", "neutral": "neutral", "positive": "positive",
+          "LABEL_0": "negative", "LABEL_1": "neutral", "LABEL_2": "positive"}
 
 _pipe = None
 

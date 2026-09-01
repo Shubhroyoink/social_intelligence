@@ -12,3 +12,6 @@ matplotlib==3.9.3
 wordcloud==1.9.4
 networkx==3.4.2
 nltk==3.9.1
+langdetect==1.0.9
+yt-dlp>=2026.8.19
+pytest>=8.0

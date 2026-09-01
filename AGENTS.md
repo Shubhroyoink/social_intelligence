@@ -2,7 +2,7 @@
 
 ## What this is
 
-Python social media analytics pipeline. Collects posts from Telegram and X, normalizes them, runs sentiment analysis (transformers), detects trends, stores everything in SQLite (`social.db`), and visualizes via a Streamlit dashboard.
+Python social media analytics pipeline. Collects posts from Telegram, X and YouTube, normalizes them, runs sentiment + emotion analysis (transformers), infers demographics, detects trends, builds an influence network, stores everything in SQLite (`social.db`), and visualizes via a Streamlit dashboard.
 
 ## Quick start
 
@@ -24,8 +24,12 @@ python run_pipeline.py --topic "AI Agents" --no-analyze
 # Skip collection, re-analyze existing DB data
 python run_pipeline.py --topic "AI Agents" --no-collect
 
-# Custom channels / queries
+# Custom channels / queries / YouTube videos
 python run_pipeline.py --channels @aipost @KDnuggets --x-queries "AI Agents" "LLM"
+python run_pipeline.py --topic "AI Agents" --youtube-urls "https://www.youtube.com/watch?v=VIDEO_ID"
+
+# Skip optional analysis stages
+python run_pipeline.py --skip-emotions --skip-demographics --skip-network
 ```
 
 ## Running the dashboard
@@ -42,13 +46,15 @@ Telegram collector requires `.env` file with:
 - `TG_API_HASH` — from https://my.telegram.org
 
 X collector (via Nitter) requires no keys.
+YouTube collector (via yt-dlp) requires no keys.
 
 ## Architecture
 
 ```
-collectors/        Telegram (Telethon) and X (Nitter) scrapers
+collectors/        Telegram (Telethon), X (Nitter) and YouTube (yt-dlp) scrapers
 normalizer/        Text cleaning, dedup, tokenization
-analytics/         Sentiment (HuggingFace transformers) + trend detection (TF-IDF)
+analytics/         Sentiment + emotion (HuggingFace transformers), demographics,
+                   trend detection (TF-IDF), network analysis (NetworkX)
 database/          SQLite schema and CRUD (social.db)
 dashboard/         Streamlit UI
 run_pipeline.py    CLI entrypoint wiring the stages together
@@ -57,8 +63,10 @@ run_pipeline.py    CLI entrypoint wiring the stages together
 ## Key quirks
 
 - **Sentiment model downloads on first run** (`cardiffnlp/twitter-roberta-base-sentiment-latest`). Slow startup until cached.
-- **Text truncated to 512 tokens** before sentiment analysis (model limit).
+- **Emotion model downloads on first run** (`j-hartmann/emotion-english-distilroberta-base`). Same slow-first-run caveat.
+- **Text truncated to 512 tokens** before model analysis (transformer limit).
 - **Nitter is fragile** — X collection may silently return empty results if Nitter instances are down.
+- **YouTube comments need a JS runtime** — as of 2026 YouTube requires solving a JS challenge to fetch comments. Install deno (`irm https://deno.land/install.ps1 | iex`) and have it on PATH; otherwise the collector warns and returns empty. yt-dlp must be recent enough to use it.
 - **Telegram session file** (`session_name.session`) is created on first run and gitignored. Deleted if you re-authenticate.
 - **DB path is hardcoded** as `social.db` in `database/db.py:5`. All modules import from `database.db`.
 - **No tests, no linter, no CI** — no commands to run for verification.

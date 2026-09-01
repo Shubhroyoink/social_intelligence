@@ -10,3 +10,5 @@ data/processed/
 dist/
 build/
 *.egg-info/
+.test_tmp/
+.pytest_cache/
