@@ -18,10 +18,14 @@ def build_graph(posts, sentiments=None):
             sentiment_map[s["post_id"]] = s.get("label", "neutral")
 
     author_posts = {}
+    post_author = {}
     for p in posts:
+        pid = p.get("id")
         handle = p.get("author_handle")
         if not handle:
             continue
+        if pid is not None:
+            post_author[pid] = handle
         if handle not in author_posts:
             author_posts[handle] = []
         author_posts[handle].append(p)
@@ -36,24 +40,29 @@ def build_graph(posts, sentiments=None):
 
         parent_id = p.get("parent_id")
         if parent_id:
-            for other_handle, other_posts in author_posts.items():
-                if other_handle == handle:
-                    continue
-                for op in other_posts:
-                    if op["id"] == parent_id:
-                        if G.has_edge(other_handle, handle):
-                            G[other_handle][handle]["weight"] += 1
-                        else:
-                            G.add_edge(other_handle, handle, weight=1)
-                        break
-
-        mentions = _extract_mentions(p.get("text", ""))
-        for mentioned in mentions:
-            if mentioned != handle and mentioned in author_posts:
-                if G.has_edge(handle, mentioned):
-                    G[handle][mentioned]["weight"] += 1
+            parent_handle = post_author.get(parent_id)
+            if parent_handle and parent_handle != handle:
+                if G.has_edge(parent_handle, handle):
+                    G[parent_handle][handle]["weight"] += 1
                 else:
-                    G.add_edge(handle, mentioned, weight=1)
+                    G.add_edge(parent_handle, handle, weight=1)
+
+        mentions = _extract_mentions(p.get("raw_text") or p.get("text", ""))
+        for mentioned in mentions:
+            if mentioned == handle:
+                continue
+            # Node keys keep the "@" as collected, but mentions are bare;
+            # match either form so cross-platform handles always line up.
+            target = next(
+                (c for c in (mentioned, "@" + mentioned) if c in author_posts),
+                None,
+            )
+            if target is None or target == handle:
+                continue
+            if G.has_edge(handle, target):
+                G[handle][target]["weight"] += 1
+            else:
+                G.add_edge(handle, target, weight=1)
 
     return G
 
@@ -108,13 +117,19 @@ def track_sentiment_flow(G, posts, sentiments):
     for s in sentiments:
         sentiment_map[s["post_id"]] = s.get("label", "neutral")
 
+    handle_sentiments = {}
+    for p in posts:
+        handle = p.get("author_handle")
+        if not handle:
+            continue
+        label = sentiment_map.get(p.get("id"))
+        if label:
+            handle_sentiments.setdefault(handle, []).append(label)
+
     edge_sentiment = {}
     for u, v in G.edges():
-        u_posts = [p for p in posts if p.get("author_handle") == u]
-        v_posts = [p for p in posts if p.get("author_handle") == v]
-
-        u_sentiments = [sentiment_map.get(p["id"]) for p in u_posts if p["id"] in sentiment_map]
-        v_sentiments = [sentiment_map.get(p["id"]) for p in v_posts if p["id"] in sentiment_map]
+        u_sentiments = handle_sentiments.get(u, [])
+        v_sentiments = handle_sentiments.get(v, [])
 
         if u_sentiments and v_sentiments:
             from_label = max(set(u_sentiments), key=u_sentiments.count)

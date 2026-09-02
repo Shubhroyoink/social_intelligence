@@ -1,6 +1,23 @@
+import hashlib
 import re
 from collections import Counter
 from datetime import datetime, timezone
+
+
+def stable_post_id(platform, raw_id, text):
+    """Build a deterministic post ID that survives re-collection.
+
+    raw_id (e.g. a tweet/comment id from the platform) is used verbatim when
+    present. Otherwise a stable SHA-256 digest of the content is used instead
+    of the built-in hash() (which is salted per process and therefore produces
+    different IDs on every run, breaking INSERT OR IGNORE idempotency).
+    """
+    if raw_id:
+        return f"{platform}_{raw_id}"
+    digest = hashlib.sha256(
+        (text or "").encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
+    return f"{platform}_{digest}"
 
 
 def clean_text(text):
@@ -51,7 +68,8 @@ def normalize_posts(posts):
     """Normalize a list of collected raw posts into a clean, uniform format."""
     normalized = []
     for p in posts:
-        text = clean_text(p.get("text", "") or "")
+        raw_text = p.get("text") or ""
+        text = clean_text(raw_text)
         if not text:
             continue
 
@@ -61,6 +79,7 @@ def normalize_posts(posts):
             "author_id": p.get("author_id"),
             "author_handle": p.get("author_handle"),
             "text": text,
+            "raw_text": raw_text,
             "created_at": normalize_timestamp(p.get("created_at")),
             "collected_at": p.get("collected_at") or datetime.now(timezone.utc).isoformat(),
             "parent_id": p.get("parent_id"),

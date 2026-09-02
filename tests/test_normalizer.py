@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 from datetime import datetime
 
 import pytest
@@ -7,7 +10,10 @@ from normalizer.normalizer import (
     dedupe,
     normalize_posts,
     normalize_timestamp,
+    stable_post_id,
 )
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _is_iso(value):
@@ -103,6 +109,23 @@ class TestNormalizePosts:
         ]
         assert normalize_posts(posts) == []
 
+    def test_preserves_raw_text(self):
+        posts = [{
+            "id": "a",
+            "text": "Great work @bob check https://example.com for details",
+            "platform": "x",
+            "author_handle": "@alice",
+        }]
+        result = normalize_posts(posts)[0]
+        assert result["raw_text"] == "Great work @bob check https://example.com for details"
+        assert "@bob" not in result["text"]
+        assert "@bob" in result["raw_text"]
+
+    def test_raw_text_absent_uses_original(self):
+        posts = [{"id": "a", "text": "plain text", "platform": "x"}]
+        result = normalize_posts(posts)[0]
+        assert result["raw_text"] == "plain text"
+
     def test_keeps_placeholder_deleted_text(self):
         posts = [{"id": "a", "text": "[deleted]", "platform": "x"}]
         result = normalize_posts(posts)
@@ -157,7 +180,7 @@ class TestNormalizePosts:
         result = normalize_posts(posts)[0]
         expected_keys = {
             "id", "platform", "author_id", "author_handle", "text",
-            "created_at", "collected_at", "parent_id", "topic_query",
+            "raw_text", "created_at", "collected_at", "parent_id", "topic_query",
             "reactions", "shares", "replies", "views",
         }
         assert set(result.keys()) == expected_keys
@@ -186,3 +209,48 @@ class TestDedupe:
         posts = [{"id": "a"}, {"id": None}, {"id": "a"}]
         result = dedupe(posts, key="id")
         assert len(result) == 2
+
+
+class TestStablePostId:
+    def test_deterministic_within_process(self):
+        a = stable_post_id("x", None, "hello @bob https://example.com")
+        b = stable_post_id("x", None, "hello @bob https://example.com")
+        assert a == b
+
+    def test_uses_platform_prefix(self):
+        assert stable_post_id("x", None, "t").startswith("x_")
+        assert stable_post_id("yt", None, "t").startswith("yt_")
+
+    def test_keeps_truthy_raw_id_verbatim(self):
+        assert stable_post_id("x", 123, "text") == "x_123"
+        assert stable_post_id("yt", "c1", "text") == "yt_c1"
+
+    def test_falsey_raw_id_falls_back_to_content_hash(self):
+        for falsey in (None, "", 0):
+            pid = stable_post_id("x", falsey, "some text")
+            assert pid.startswith("x_")
+            assert "None" not in pid
+            assert len(pid) == 2 + 16  # prefix + 16-char digest
+
+    def test_distinct_texts_get_distinct_ids(self):
+        assert stable_post_id("x", None, "first post") != stable_post_id("x", None, "second")
+
+    def test_same_text_same_id_across_platforms_keep_prefix(self):
+        assert stable_post_id("x", None, "dup") != stable_post_id("yt", None, "dup")
+
+    def test_unicode_text_handled(self):
+        pid = stable_post_id("x", None, "日本語のテキスト émojis 🚀")
+        assert pid.startswith("x_")
+
+    def test_stable_across_processes(self):
+        code = (
+            "from normalizer.normalizer import stable_post_id;"
+            "print(stable_post_id('x', None, 'hello @bob https://example.com'))"
+        )
+        r1 = subprocess.run([sys.executable, "-c", code],
+                            capture_output=True, text=True, cwd=PROJECT_ROOT)
+        r2 = subprocess.run([sys.executable, "-c", code],
+                            capture_output=True, text=True, cwd=PROJECT_ROOT)
+        assert r1.returncode == 0 and r2.returncode == 0
+        assert r1.stdout == r2.stdout
+        assert "None" not in r1.stdout

@@ -16,6 +16,7 @@ def create_database():
             author_id TEXT,
             author_handle TEXT,
             text TEXT NOT NULL,
+            raw_text TEXT,
             created_at TEXT NOT NULL,
             collected_at TEXT NOT NULL,
             parent_id TEXT,
@@ -31,6 +32,8 @@ def create_database():
         CREATE INDEX IF NOT EXISTS idx_topic_created
         ON posts (topic_query, created_at)
     """)
+
+    _migrate_posts_raw_text(conn)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sentiments (
@@ -127,6 +130,17 @@ def create_database():
     conn.close()
 
 
+def _migrate_posts_raw_text(conn):
+    """Add the raw_text column to pre-existing posts tables (non-destructive).
+
+    New databases create it in the CREATE TABLE already; this covers databases
+    created before the column existed, so old rows simply get NULL.
+    """
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(posts)").fetchall()}
+    if "raw_text" not in columns:
+        conn.execute("ALTER TABLE posts ADD COLUMN raw_text TEXT")
+
+
 def save_posts(posts):
     conn = sqlite3.connect(DB_PATH)
 
@@ -134,15 +148,15 @@ def save_posts(posts):
         conn.execute("""
             INSERT OR IGNORE INTO posts (
                 id, platform, author_id, author_handle, text,
-                created_at, collected_at, parent_id, topic_query,
+                raw_text, created_at, collected_at, parent_id, topic_query,
                 reactions, shares, replies, views
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             p["id"], p["platform"], p["author_id"], p["author_handle"],
-            p["text"], p["created_at"], p["collected_at"], p["parent_id"],
-            p["topic_query"], p["reactions"], p["shares"], p["replies"],
-            p["views"]
+            p["text"], p.get("raw_text"), p["created_at"], p["collected_at"],
+            p["parent_id"], p["topic_query"], p["reactions"], p["shares"],
+            p["replies"], p["views"]
         ))
 
     conn.commit()

@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from ntscraper import Nitter
 
+from normalizer.normalizer import dedupe, normalize_posts, normalize_timestamp, stable_post_id
+
 
 DEFAULT_QUERY_LIMIT = 50
 
@@ -20,10 +22,10 @@ def collect_x_search(query, topic_query, limit=DEFAULT_QUERY_LIMIT):
                 continue
 
             created_at_raw = t.get("timestamp") or t.get("date")
-            created_at = _normalize_timestamp(created_at_raw)
+            created_at = normalize_timestamp(created_at_raw)
 
             collected.append({
-                "id": f"x_{t.get('id', abs(hash(text)))}",
+                "id": stable_post_id("x", t.get("id"), text),
                 "platform": "x",
                 "author_id": t.get("user", {}).get("id"),
                 "author_handle": t.get("user", {}).get("name") or t.get("user", {}).get("username"),
@@ -56,10 +58,10 @@ def collect_x_profile(handle, topic_query, limit=DEFAULT_QUERY_LIMIT):
                 continue
 
             created_at_raw = t.get("timestamp") or t.get("date")
-            created_at = _normalize_timestamp(created_at_raw)
+            created_at = normalize_timestamp(created_at_raw)
 
             collected.append({
-                "id": f"x_{t.get('id', abs(hash(text)))}",
+                "id": stable_post_id("x", t.get("id"), text),
                 "platform": "x",
                 "author_id": t.get("user", {}).get("id"),
                 "author_handle": handle,
@@ -77,18 +79,6 @@ def collect_x_profile(handle, topic_query, limit=DEFAULT_QUERY_LIMIT):
         print(f"[X collector] Warning: {e}")
 
     return collected
-
-
-def _normalize_timestamp(value):
-    """Normalize various timestamp formats from Nitter into ISO 8601 UTC string."""
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).isoformat()
-        except ValueError:
-            return datetime.now(timezone.utc).isoformat()
-    return datetime.now(timezone.utc).isoformat()
 
 
 if __name__ == "__main__":
@@ -110,5 +100,5 @@ if __name__ == "__main__":
         all_posts.extend(posts)
 
     print(f"Total collected: {len(all_posts)}")
-    save_posts(all_posts)
+    save_posts(dedupe(normalize_posts(all_posts), key="id"))
     print("Saved to social.db")

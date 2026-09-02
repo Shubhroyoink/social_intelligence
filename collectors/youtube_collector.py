@@ -1,5 +1,25 @@
 import os
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+
+from normalizer.normalizer import normalize_timestamp, stable_post_id
+
+
+ALLOWED_YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"}
+ALLOWED_URL_SCHEMES = {"http", "https"}
+
+
+def _validate_youtube_url(video_url):
+    """Reject anything other than http(s) YouTube links before handing it to yt-dlp.
+
+    yt-dlp will happily process local paths and other schemes, making an
+    unvalidated user-supplied URL an SSRF/local-file probe vector.
+    """
+    parsed = urlparse(video_url)
+    if parsed.scheme not in ALLOWED_URL_SCHEMES:
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme!r}")
+    if parsed.netloc.lower() not in ALLOWED_YOUTUBE_HOSTS:
+        raise ValueError(f"Unsupported video host: {parsed.netloc!r}")
 
 
 def _js_runtime_available():
@@ -27,6 +47,8 @@ def collect_youtube_comments(video_url, topic_query, limit=100):
     Returns:
         List of post dicts in the uniform schema.
     """
+    _validate_youtube_url(video_url)
+
     try:
         import yt_dlp
     except ImportError:
@@ -67,11 +89,10 @@ def collect_youtube_comments(video_url, topic_query, limit=100):
 
         author = c.get("author") or "unknown"
         author_id = c.get("author_id") or c.get("author") or "unknown"
-        comment_id = c.get("id") or f"{info.get('id', 'video')}_{abs(hash(text))}"
-        created_at = _normalize_yt_timestamp(c.get("timestamp"))
+        created_at = normalize_timestamp(c.get("timestamp"))
 
         collected.append({
-            "id": f"yt_{comment_id}",
+            "id": stable_post_id("yt", c.get("id"), text),
             "platform": "youtube",
             "author_id": str(author_id),
             "author_handle": author,
@@ -87,22 +108,6 @@ def collect_youtube_comments(video_url, topic_query, limit=100):
         })
 
     return collected
-
-
-def _normalize_yt_timestamp(value):
-    if value is None:
-        return datetime.now(timezone.utc).isoformat()
-
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
-
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).isoformat()
-        except ValueError:
-            pass
-
-    return datetime.now(timezone.utc).isoformat()
 
 
 if __name__ == "__main__":

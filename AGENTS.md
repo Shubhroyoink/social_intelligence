@@ -74,7 +74,8 @@ run_pipeline.py    CLI entrypoint wiring the stages together
 
 ## Conventions
 
-- All posts use a uniform dict schema: `id, platform, author_id, author_handle, text, created_at, collected_at, parent_id, topic_query, reactions, shares, replies, views`
+- All posts use a uniform dict schema: `id, platform, author_id, author_handle, text, raw_text, created_at, collected_at, parent_id, topic_query, reactions, shares, replies, views`
+- `text` is the normalizer-cleaned version (mentions/URLs stripped); `raw_text` keeps the original (needed by network analysis for @mentions).
 - Timestamps are ISO 8601 UTC strings.
 - `INSERT OR IGNORE` for posts (idempotent), `INSERT OR REPLACE` for sentiments, plain `INSERT` for trends (accumulates).
 - Modules use lazy imports (imported inside functions) to avoid loading heavy deps (torch, transformers) unless needed.

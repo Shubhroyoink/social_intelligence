@@ -30,6 +30,23 @@ class TestSchema:
                     "demographics", "network_nodes", "network_edges"}
         assert expected.issubset(tables)
 
+    def test_posts_has_raw_text_column(self, test_db):
+        conn = sqlite3.connect(test_db.DB_PATH)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(posts)").fetchall()}
+        conn.close()
+        assert "raw_text" in cols
+
+    def test_raw_text_migrated_on_preexisting_db(self, test_db):
+        conn = sqlite3.connect(test_db.DB_PATH)
+        conn.execute("ALTER TABLE posts DROP COLUMN raw_text")
+        conn.commit()
+        conn.close()
+        test_db.create_database()
+        conn = sqlite3.connect(test_db.DB_PATH)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(posts)").fetchall()}
+        conn.close()
+        assert "raw_text" in cols
+
 
 class TestPosts:
     def test_empty_queries(self, test_db):
@@ -41,6 +58,23 @@ class TestPosts:
         db.save_posts(sample_posts)
         loaded = db.get_posts()
         assert len(loaded) == len(sample_posts)
+
+    def test_raw_text_roundtrips(self, test_db):
+        post = {
+            "id": "rt_1", "platform": "x", "author_id": "uA", "author_handle": "@alice",
+            "text": "great work", "raw_text": "great work @bob see http://x.com",
+            "created_at": "2026-08-01T10:00:00+00:00", "collected_at": "2026-08-01T11:00:00+00:00",
+            "parent_id": None, "topic_query": "AI Agents",
+            "reactions": 0, "shares": 0, "replies": None, "views": None,
+        }
+        db.save_posts([post])
+        loaded = db.get_posts()[0]
+        assert loaded["raw_text"] == "great work @bob see http://x.com"
+
+    def test_save_stores_null_raw_text_when_missing(self, test_db, sample_posts):
+        db.save_posts(sample_posts)
+        loaded = db.get_posts()[0]
+        assert loaded["raw_text"] is None
 
     def test_insert_ignore_duplicates(self, test_db, sample_posts):
         db.save_posts(sample_posts)

@@ -95,7 +95,9 @@ def detect_trends(posts, topic_query, window_size_hours=24, top_n=N_TOP_WINDOW_K
         window_posts = w["posts"]
         window_counter = _count_keywords(window_posts.to_dict("records"))
 
-        # Score: frequency in window weighted by how unusual it is vs baseline
+        # Score: frequency in window weighted by how unusual it is vs baseline,
+        # then keep only the top_n real spikes per window.
+        scored = []
         for keyword, freq in window_counter.most_common(top_n * 2):
             baseline = overall_counter.get(keyword, 1)
             base_rate = baseline / max(total_posts, 1)
@@ -103,8 +105,11 @@ def detect_trends(posts, topic_query, window_size_hours=24, top_n=N_TOP_WINDOW_K
 
             # Spike score: how much more frequent than the baseline rate
             boost = window_rate / max(base_rate, 1e-6)
-            trend_score = freq * boost
+            scored.append((freq * boost, keyword, int(freq)))
 
+        scored.sort(key=lambda x: x[0], reverse=True)
+
+        for _, keyword, freq in scored[:top_n]:
             trend_rows.append({
                 "topic_query": topic_query,
                 "keyword": keyword,
@@ -114,7 +119,6 @@ def detect_trends(posts, topic_query, window_size_hours=24, top_n=N_TOP_WINDOW_K
                 "analyzed_at": analyzed_at,
             })
 
-    # Sort by frequency desc within the latest window for headline trends
     return trend_rows
 
 

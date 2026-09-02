@@ -40,6 +40,53 @@ class TestBuildGraph:
         assert G.has_edge("alice", "bob")
         assert G["alice"]["bob"]["weight"] == 1
 
+        def test_mentions_extracted_from_raw_text_not_cleaned_text(self):
+            cleaned = _post("1", "alice", "Great work")
+            cleaned["raw_text"] = "Great work @bob and @carol see https://example.com"
+            G = build_graph([cleaned, _post("2", "bob", "hi")])
+            assert G.has_edge("alice", "bob")
+            assert not G.has_edge("alice", "carol")  # carol not an author node
+
+    def test_falls_back_to_text_when_raw_text_missing(self):
+        G = build_graph([
+            _post("1", "alice", "Great work @bob"),
+            _post("2", "bob", "Thanks alice"),
+        ])
+        assert G.has_edge("alice", "bob")
+
+    def test_mention_matches_at_prefix_handle(self):
+        # Telegram stores @-prefixed handles; mentions arrive bare.
+        posts = [
+            {"id": "1", "author_handle": "@alice", "text": "Great work @bob"},
+            {"id": "2", "author_handle": "@bob", "text": "thanks"},
+        ]
+        G = build_graph(posts)
+        assert G.has_edge("@alice", "@bob")
+        assert G["@alice"]["@bob"]["weight"] == 1
+
+    def test_self_mention_via_at_prefix_ignored(self):
+        posts = [
+            {"id": "1", "author_handle": "@alice", "text": "Hi @alice nice to meet me"},
+        ]
+        G = build_graph(posts)
+        assert len(G.edges()) == 0
+
+    def test_parent_edge_found_at_scale(self):
+        # Cross-verify parent resolution at size; index-based lookup keeps this O(P).
+        posts = [_post(f"p{i}", f"user{i}", "replying", parent_id=f"p{i-1}")
+                 for i in range(1, 2001)]
+        G = build_graph(posts)
+        assert G.has_edge("user1", "user2")
+        assert G["user1"]["user2"]["weight"] == 1
+
+    def test_mentions_at_scale(self):
+        posts = []
+        for i in range(1500):
+            posts.append(_post(f"a{i}", "alice", "plain"))
+            posts.append(_post(f"b{i}", "bob", "@alice great point"))
+        G = build_graph(posts)
+        assert G.has_edge("bob", "alice")
+
     def test_repeated_mentions_increment_weight(self):
         G = build_graph([
             _post("1", "alice", "Great work @bob"),

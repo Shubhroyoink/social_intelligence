@@ -4,16 +4,28 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 import os
 
-load_dotenv()
+from normalizer.normalizer import dedupe, normalize_posts
 
-api_id = os.environ["TG_API_ID"]       # get from my.telegram.org
-api_hash = os.environ["TG_API_HASH"]
+load_dotenv()
 
 channels = ["@aipost",
             "@KDnuggets",
             "@theaiexecutive"]  # public channels on your topic
 
+
+def _credentials():
+    api_id = os.environ.get("TG_API_ID")
+    api_hash = os.environ.get("TG_API_HASH")
+    if not api_id or not api_hash:
+        raise RuntimeError(
+            "Telegram credentials missing. Set TG_API_ID and TG_API_HASH in "
+            "your .env file (see .env.example)."
+        )
+    return api_id, api_hash
+
+
 def collect_telegram(channels, topic_query, limit_per_channel=200):
+    api_id, api_hash = _credentials()
     collected = []
     with TelegramClient("session_name", api_id, api_hash) as client:
         for channel in channels:
@@ -38,7 +50,6 @@ def collect_telegram(channels, topic_query, limit_per_channel=200):
                     "shares": msg.forwards or 0,
                     "replies": None,  # Telethon doesn't give reply counts directly; leave null
                     "views": msg.views,
-                    "raw_json": str(msg.to_dict())
                 })
     return collected
 
@@ -55,6 +66,6 @@ if __name__ == "__main__":
 
     print(f"Collected {len(data)} messages")
 
-    save_posts(data)
+    save_posts(dedupe(normalize_posts(data), key="id"))
 
     print("Saved messages to social.db")
