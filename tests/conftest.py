@@ -7,7 +7,11 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+import dotenv
+
 import database.db as db_module
+
+SECRET_ENV_KEYS = ("YOUTUBE_API_KEY", "TG_API_ID", "TG_API_HASH", "LLM_API_KEY")
 
 
 def pytest_configure(config):
@@ -17,6 +21,15 @@ def pytest_configure(config):
     this hook keeps every test artifact on the D: drive.
     """
     config.option.basetemp = os.path.join(PROJECT_ROOT, ".test_tmp")
+
+    # Durable env-isolation for the whole session. Collectors call
+    # load_dotenv() at module import, and lazy imports in run_pipeline mean a
+    # collector can first be imported mid-test (re-reading .env with real
+    # secrets). No-oping load_dotenv before any test module is collected, plus
+    # scrubbing the known secret names, stops every such leak at once.
+    dotenv.load_dotenv = lambda *a, **k: False
+    for key in SECRET_ENV_KEYS:
+        os.environ.pop(key, None)
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +43,17 @@ def test_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db_module, "DB_PATH", str(db_file))
     db_module.create_database()
     return db_module
+
+
+@pytest.fixture(autouse=True)
+def _ledger_isolated(tmp_path, monkeypatch):
+    """Route the YouTube quota ledger to .test_tmp so tests never touch
+    (or write) the real youtube_quota.json in the repo root."""
+    from collectors import youtube_collector
+
+    monkeypatch.setattr(
+        youtube_collector, "LEDGER_PATH", str(tmp_path / "youtube_quota.json")
+    )
 
 
 @pytest.fixture

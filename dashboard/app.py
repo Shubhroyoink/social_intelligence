@@ -10,8 +10,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from database.db import (
-    get_posts, get_sentiments, get_trends, get_emotions,
+    create_database, get_posts, get_sentiments, get_trends, get_emotions,
     get_demographics_summary, get_network_nodes, get_network_edges,
+    get_narratives,
 )
 
 st.set_page_config(page_title="AI Social Media Analytics", layout="wide")
@@ -28,6 +29,7 @@ def load_data(topic):
         "demo_summary": get_demographics_summary(topic_query=t),
         "network_nodes": get_network_nodes(topic_query=t),
         "network_edges": get_network_edges(topic_query=t),
+        "narratives": get_narratives(topic_query=t),
     }
 
 
@@ -45,6 +47,8 @@ EMOTION_COLORS = {
 def main():
     st.title("AI Social Media Analytics")
 
+    create_database()  # idempotent; ensures schema exists even if pipeline hasn't run
+
     st.sidebar.header("Filters")
     all_posts = get_posts()
     topics = ["All"] + sorted({p["topic_query"] for p in all_posts if p.get("topic_query")})
@@ -58,6 +62,19 @@ def main():
     demo_summary = data["demo_summary"]
     net_nodes = data["network_nodes"]
     net_edges = data["network_edges"]
+
+    narratives = data["narratives"]
+    if narratives:
+        latest = narratives[0]
+        st.subheader("Executive Summary / AI Narrative")
+        caption = f"Generated {latest['created_at'][:19].replace('T', ' ')} UTC"
+        if latest["backend"] == "gemini":
+            caption += f" \u00b7 Gemini ({latest['model']})"
+        else:
+            caption += " \u00b7 template fallback (no LLM_API_KEY set)"
+        st.caption(caption)
+        st.markdown(latest["report_markdown"])
+        st.markdown("---")
 
     df_posts = pd.DataFrame(posts)
     df_sent = pd.DataFrame(sentiments)

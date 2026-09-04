@@ -1,9 +1,12 @@
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 
 
-DB_PATH = "social.db"
+DB_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "social.db")
+)
 
 
 def create_database():
@@ -124,6 +127,43 @@ def create_database():
             topic_query TEXT,
             computed_at TEXT NOT NULL
         )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS narratives (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topic_query TEXT,
+            backend TEXT NOT NULL,
+            model TEXT,
+            stats_json TEXT,
+            report_markdown TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_narratives_topic_created
+        ON narratives (topic_query, created_at)
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS youtube_videos (
+            video_id TEXT NOT NULL,
+            topic_query TEXT NOT NULL,
+            title TEXT,
+            channel TEXT,
+            description TEXT,
+            published_at TEXT,
+            first_seen_at TEXT NOT NULL,
+            last_fetched_at TEXT,
+            comments_count INTEGER DEFAULT 0,
+            PRIMARY KEY (video_id, topic_query)
+        )
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_youtube_videos_topic
+        ON youtube_videos (topic_query)
     """)
 
     conn.commit()
@@ -445,6 +485,97 @@ def get_network_edges(topic_query=None):
     if topic_query:
         query += " AND topic_query = ?"
         params.append(topic_query)
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def save_narrative(narrative):
+    conn = sqlite3.connect(DB_PATH)
+
+    conn.execute("""
+        INSERT INTO narratives (
+            topic_query, backend, model, stats_json, report_markdown, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        narrative["topic_query"], narrative["backend"], narrative.get("model"),
+        narrative.get("stats_json"), narrative["report_markdown"],
+        narrative["created_at"]
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def upsert_youtube_video(video, topic_query, last_fetched_at=None, comments_count=None):
+    """Record a video discovered for a topic (search cache / incremental dedup).
+
+    First-seen metadata is preserved across updates; only discovery fields are
+    refreshed. last_fetched_at/comments_count are set when the caller has
+    actually extracted comments for the video.
+    """
+    conn = sqlite3.connect(DB_PATH)
+
+    conn.execute("""
+        INSERT INTO youtube_videos (
+            video_id, topic_query, title, channel, description, published_at,
+            first_seen_at, last_fetched_at, comments_count
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(video_id, topic_query) DO UPDATE SET
+            title = excluded.title,
+            channel = excluded.channel,
+            description = excluded.description,
+            published_at = excluded.published_at,
+            last_fetched_at = CASE
+                WHEN excluded.last_fetched_at IS NOT NULL
+                THEN excluded.last_fetched_at
+                ELSE youtube_videos.last_fetched_at
+            END,
+            comments_count = CASE
+                WHEN excluded.comments_count IS NOT NULL
+                THEN excluded.comments_count
+                ELSE youtube_videos.comments_count
+            END
+    """, (
+        video["video_id"], topic_query, video.get("title"),
+        video.get("channel"), video.get("description"),
+        video.get("published_at"), datetime.now(timezone.utc).isoformat(),
+        last_fetched_at, comments_count
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_fetched_youtube_video_ids(topic_query):
+    """Video IDs for a topic whose comments have already been extracted."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT video_id FROM youtube_videos
+        WHERE topic_query = ? AND last_fetched_at IS NOT NULL
+    """, (topic_query,)).fetchall()
+    conn.close()
+    return [r["video_id"] for r in rows]
+
+
+def get_narratives(topic_query=None, limit=None):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    query = "SELECT * FROM narratives WHERE 1=1"
+    params = []
+
+    if topic_query:
+        query += " AND topic_query = ?"
+        params.append(topic_query)
+
+    query += " ORDER BY created_at DESC"
+    if limit:
+        query += " LIMIT ?"
+        params.append(limit)
 
     rows = conn.execute(query, params).fetchall()
     conn.close()

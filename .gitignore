@@ -12,3 +12,4 @@ build/
 *.egg-info/
 .test_tmp/
 .pytest_cache/
+youtube_quota.json
