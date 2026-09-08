@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { PlotlyChart } from './PlotlyChart';
 import type { NetworkData } from '../types';
+import { Maximize2, Minimize2, X } from 'lucide-react';
 
 interface NetworkViewProps {
   network?: NetworkData;
@@ -9,6 +10,7 @@ interface NetworkViewProps {
 export const NetworkView: React.FC<NetworkViewProps> = ({
   network = { nodes: [], edges: [], kols: [], node_count: 0, edge_count: 0, kol_count: 0 },
 }) => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const nodes = network?.nodes || [];
   const edges = network?.edges || [];
   const kols = network?.kols || [];
@@ -106,7 +108,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
     // Build Node Scatter trace
     const nodeX = positions.map((p) => p.x);
     const nodeY = positions.map((p) => p.y);
-    const nodeText = displayNodes.map((d) => d.handle);
+    const nodeText = displayNodes.map((d) => (d.is_kol || (d.eigenvector_centrality || 0) > 0.05 ? d.handle : ''));
     const hoverText = displayNodes.map(
       (d) =>
         `<b>@${d.handle}</b><br>Eigenvector: ${(d.eigenvector_centrality || 0).toFixed(4)}<br>Degree: ${(d.degree_centrality || 0).toFixed(4)}<br>Community: #${d.community_id || 0}${d.is_kol ? '<br><b>🌟 Key Opinion Leader</b>' : ''}`
@@ -118,7 +120,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
       x: nodeX,
       y: nodeY,
       mode: 'markers+text' as const,
-      text: displayNodes.map((d) => (d.is_kol || (d.eigenvector_centrality || 0) > 0.05 ? d.handle : '')),
+      text: nodeText,
       textposition: 'top center' as const,
       textfont: { size: 9, color: '#e4e4e7' },
       hoverinfo: 'text' as const,
@@ -148,9 +150,17 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
   return (
     <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
-      <div className="border-b border-neutral-800 pb-4">
-        <h3 className="text-base font-bold text-white">Network & Influence Analysis</h3>
-        <p className="text-xs text-neutral-400">Centrality ranking, community clustering, and interaction graphs</p>
+      <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+        <div>
+          <h3 className="text-base font-bold text-white">Network & Influence Analysis</h3>
+          <p className="text-xs text-neutral-400">Centrality ranking, community clustering, and interaction graphs</p>
+        </div>
+        <button
+          onClick={() => setIsFullscreen(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800/80 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+        >
+          <Maximize2 className="h-3.5 w-3.5" /> Fullscreen Graph
+        </button>
       </div>
 
       {/* 3 Metrics */}
@@ -241,7 +251,49 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Fullscreen Graph Modal */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="relative flex h-[92vh] w-[95vw] flex-col rounded-2xl border border-neutral-700 bg-neutral-950 p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-white">Interactive Network Graph (Fullscreen)</h2>
+                <p className="text-xs text-neutral-400">
+                  Full resolution node-link diagram • Drag to pan, scroll to zoom, hover on nodes for centrality details
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsFullscreen(false)}
+                  className="flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-850 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 hover:text-white"
+                >
+                  <Minimize2 className="h-4 w-4" /> Close Fullscreen
+                </button>
+                <button
+                  onClick={() => setIsFullscreen(false)}
+                  className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden pt-4">
+              <PlotlyChart
+                className="w-full h-[78vh]"
+                data={plotData as any}
+                layout={{
+                  showlegend: false,
+                  hovermode: 'closest',
+                  xaxis: { showgrid: false, zeroline: false, showticklabels: false },
+                  yaxis: { showgrid: false, zeroline: false, showticklabels: false },
+                  margin: { l: 20, r: 20, t: 20, b: 20 },
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
