@@ -327,10 +327,66 @@ def list_demographics(topic: Optional[str] = None):
 
 
 @app.get("/api/trends")
-def list_trends(topic: Optional[str] = None, limit: Optional[int] = 50):
+def list_trends(topic: Optional[str] = None):
     t = topic if topic and topic != "All" else None
-    trends = get_trends(topic_query=t, limit=limit)
-    return {"trends": trends, "count": len(trends)}
+    all_trends = get_trends(topic_query=t)
+
+    if not all_trends:
+        return {
+            "all_trends": [],
+            "latest_trends": [],
+            "unique_keywords": [],
+            "keyword_timelines": {},
+            "count": 0
+        }
+
+    # Find latest window_start
+    window_starts = [r["window_start"] for r in all_trends if r.get("window_start")]
+    latest_window = max(window_starts) if window_starts else None
+
+    # Filter for latest window trends
+    if latest_window:
+        latest_trends = [r for r in all_trends if r.get("window_start") == latest_window]
+    else:
+        latest_trends = all_trends
+
+    latest_trends.sort(key=lambda x: x.get("frequency", 0), reverse=True)
+
+    # Unique keywords from latest window (or all)
+    seen_kw = set()
+    unique_keywords = []
+    for r in latest_trends:
+        kw = r.get("keyword")
+        if kw and kw not in seen_kw:
+            seen_kw.add(kw)
+            unique_keywords.append(kw)
+
+    # If unique keywords from latest is short, fill with others
+    for r in all_trends:
+        kw = r.get("keyword")
+        if kw and kw not in seen_kw:
+            seen_kw.add(kw)
+            unique_keywords.append(kw)
+
+    # Build keyword timelines: groupby window_start summing frequency
+    keyword_timelines = {}
+    for kw in unique_keywords:
+        timeline_dict = {}
+        for r in all_trends:
+            if r.get("keyword") == kw and r.get("window_start"):
+                w = r["window_start"]
+                timeline_dict[w] = timeline_dict.get(w, 0) + (r.get("frequency") or 0)
+        sorted_times = sorted(timeline_dict.items(), key=lambda x: x[0])
+        keyword_timelines[kw] = [{"window_start": k, "frequency": v} for k, v in sorted_times]
+
+    return {
+        "all_trends": all_trends,
+        "latest_window": latest_window,
+        "latest_trends": latest_trends[:20],
+        "unique_keywords": unique_keywords[:20],
+        "keyword_timelines": keyword_timelines,
+        "count": len(all_trends)
+    }
 
 
 @app.get("/api/network")
