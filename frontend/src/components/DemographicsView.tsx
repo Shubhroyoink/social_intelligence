@@ -212,13 +212,13 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     gridcolor: 'rgba(255, 255, 255, 0.08)',
                   },
                   yaxis: {
-                    title: { text: 'Region', font: { size: 11, color: '#e4e4e7' } },
+                    title: { text: 'Region', standoff: 25, font: { size: 11, color: '#e4e4e7' } },
                     automargin: true,
                     categoryorder: 'total ascending',
                     dtick: 1,
                     tickfont: { size: 11, color: '#e4e4e7' },
                   },
-                  margin: { l: 90, r: 20, t: 15, b: 45 },
+                  margin: { l: 125, r: 20, t: 35, b: 45 },
                 }}
               />
             ) : (
@@ -256,13 +256,13 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     gridcolor: 'rgba(255, 255, 255, 0.08)',
                   },
                   yaxis: {
-                    title: { text: 'Category', font: { size: 11, color: '#e4e4e7' } },
+                    title: { text: 'Category', standoff: 25, font: { size: 11, color: '#e4e4e7' } },
                     automargin: true,
                     categoryorder: 'total ascending',
                     dtick: 1,
                     tickfont: { size: 11, color: '#e4e4e7' },
                   },
-                  margin: { l: 110, r: 20, t: 15, b: 45 },
+                  margin: { l: 140, r: 20, t: 35, b: 45 },
                 }}
               />
             ) : (
@@ -331,8 +331,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                       data={geoChartData}
                       layout={{
                         xaxis: { title: { text: 'Mentions' }, gridcolor: 'rgba(255,255,255,0.08)' },
-                        yaxis: { title: { text: 'Region' }, automargin: true, categoryorder: 'total ascending' },
-                        margin: { l: 110, r: 20, t: 20, b: 50 },
+                        yaxis: { title: { text: 'Region', standoff: 30 }, automargin: true, categoryorder: 'total ascending' },
+                        margin: { l: 140, r: 20, t: 30, b: 50 },
                       }}
                     />
                   </div>
@@ -344,8 +344,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                       data={interestChartData}
                       layout={{
                         xaxis: { title: { text: 'Posts' }, gridcolor: 'rgba(255,255,255,0.08)' },
-                        yaxis: { title: { text: 'Category' }, automargin: true, categoryorder: 'total ascending' },
-                        margin: { l: 130, r: 20, t: 20, b: 50 },
+                        yaxis: { title: { text: 'Category', standoff: 30 }, automargin: true, categoryorder: 'total ascending' },
+                        margin: { l: 160, r: 20, t: 30, b: 50 },
                       }}
                     />
                   </div>
@@ -373,8 +373,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     data={geoChartData}
                     layout={{
                       xaxis: { title: { text: 'Mentions', font: { size: 14 } }, gridcolor: 'rgba(255,255,255,0.08)' },
-                      yaxis: { title: { text: 'Region', font: { size: 14 } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13 } },
-                      margin: { l: 140, r: 30, t: 30, b: 60 },
+                      yaxis: { title: { text: 'Region', standoff: 35, font: { size: 14 } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13 } },
+                      margin: { l: 160, r: 30, t: 40, b: 60 },
                     }}
                   />
                 </div>
@@ -387,8 +387,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     data={interestChartData}
                     layout={{
                       xaxis: { title: { text: 'Posts', font: { size: 14 } }, gridcolor: 'rgba(255,255,255,0.08)' },
-                      yaxis: { title: { text: 'Category', font: { size: 14 } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13 } },
-                      margin: { l: 150, r: 30, t: 30, b: 60 },
+                      yaxis: { title: { text: 'Category', standoff: 35, font: { size: 14 } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13 } },
+                      margin: { l: 170, r: 30, t: 40, b: 60 },
                     }}
                   />
                 </div>

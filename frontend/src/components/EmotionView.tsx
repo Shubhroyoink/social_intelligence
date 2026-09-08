@@ -181,9 +181,9 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
                 data={emotionBarData}
                 layout={{
                   height: 260,
-                  margin: { l: 65, r: 20, t: 10, b: 35 },
+                  margin: { l: 85, r: 20, t: 20, b: 35 },
                   xaxis: { title: { text: 'Posts', font: { size: 11, color: '#71717a' } } },
-                  yaxis: { dtick: 1 },
+                  yaxis: { title: { text: 'Emotion', standoff: 20, font: { size: 11, color: '#71717a' } }, dtick: 1, automargin: true },
                 }}
                 className="h-64 w-full"
               />

@@ -13,7 +13,39 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const nodes = network?.nodes || [];
   const edges = network?.edges || [];
-  const kols = network?.kols || [];
+  const kolsList = useMemo(() => {
+    const rawKols = network?.kols || [];
+    const nodeMap = new Map<string, any>();
+    nodes.forEach((n) => nodeMap.set(n.handle, n));
+
+    if (rawKols.length > 0) {
+      if (typeof rawKols[0] === 'object' && rawKols[0] !== null && 'handle' in rawKols[0]) {
+        return rawKols as any[];
+      }
+      if (typeof rawKols[0] === 'string') {
+        return (rawKols as unknown as string[]).map(
+          (h) =>
+            nodeMap.get(h) || {
+              handle: h,
+              degree_centrality: 0,
+              betweenness_centrality: 0,
+              eigenvector_centrality: 0,
+              community_id: 0,
+              is_kol: 1,
+            }
+        );
+      }
+    }
+
+    const explicitKols = nodes.filter((n) => n.is_kol === 1);
+    if (explicitKols.length > 0) {
+      return explicitKols.sort((a, b) => (b.eigenvector_centrality || 0) - (a.eigenvector_centrality || 0));
+    }
+
+    return [...nodes]
+      .sort((a, b) => (b.eigenvector_centrality || 0) - (a.eigenvector_centrality || 0))
+      .slice(0, 15);
+  }, [network?.kols, nodes]);
 
   // Compute 2D Spring / Force layout for Plotly
   const plotData = useMemo(() => {
@@ -177,7 +209,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
         <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
           <span className="text-xs font-semibold text-neutral-400">Key Opinion Leaders</span>
-          <div className="text-2xl font-bold text-white mt-1">{network?.kol_count || kols.length}</div>
+          <div className="text-2xl font-bold text-white mt-1">{network?.kol_count || kolsList.length}</div>
         </div>
       </div>
 
@@ -199,9 +231,9 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-800/60 bg-neutral-900/30 font-mono text-[11px]">
-              {kols.map((kol, idx) => (
+              {kolsList.map((kol, idx) => (
                 <tr key={idx} className="hover:bg-neutral-800/40">
-                  <td className="p-3 font-semibold text-indigo-300 font-sans">{kol.handle}</td>
+                  <td className="p-3 font-semibold text-indigo-300 font-sans">@{kol.handle}</td>
                   <td className="p-3 text-neutral-300">{(kol.degree_centrality || 0).toFixed(4)}</td>
                   <td className="p-3 text-neutral-300">{(kol.betweenness_centrality || 0).toFixed(4)}</td>
                   <td className="p-3 text-emerald-400 font-bold">{(kol.eigenvector_centrality || 0).toFixed(4)}</td>
@@ -209,7 +241,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
                 </tr>
               ))}
 
-              {kols.length === 0 && (
+              {kolsList.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-6 text-center text-xs text-neutral-500 font-sans">
                     No KOLs identified yet (need more interaction data)

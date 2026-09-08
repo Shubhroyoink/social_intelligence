@@ -338,14 +338,19 @@ def list_network(topic: Optional[str] = None):
     t = topic if topic and topic != "All" else None
     nodes = get_network_nodes(topic_query=t)
     edges = get_network_edges(topic_query=t)
-    kols = [n["handle"] for n in nodes if n.get("is_kol") == 1]
+    
+    sorted_nodes = sorted(nodes, key=lambda n: n.get("eigenvector_centrality", 0) or 0, reverse=True)
+    kols = [n for n in sorted_nodes if n.get("is_kol") == 1]
+    if not kols and sorted_nodes:
+        kols = sorted_nodes[:10]
 
     return {
-        "nodes": nodes,
+        "nodes": sorted_nodes,
         "edges": edges,
         "kols": kols,
         "node_count": len(nodes),
-        "edge_count": len(edges)
+        "edge_count": len(edges),
+        "kol_count": sum(1 for n in nodes if n.get("is_kol") == 1)
     }
 
 
