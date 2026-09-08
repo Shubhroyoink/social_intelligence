@@ -170,10 +170,24 @@ export function App() {
   // Periodic poll while pipeline runs
   useEffect(() => {
     const interval = setInterval(async () => {
-      const status = await fetchPipelineStatus();
-      setPipelineStatus(status);
-      if (status.is_running) {
-        loadData(selectedTopic);
+      try {
+        const status = await fetchPipelineStatus();
+        setPipelineStatus((prev) => {
+          if (
+            prev.is_running === status.is_running &&
+            prev.status_message === status.status_message &&
+            prev.last_run === status.last_run &&
+            prev.error === status.error
+          ) {
+            return prev;
+          }
+          return status;
+        });
+        if (status.is_running) {
+          loadData(selectedTopic);
+        }
+      } catch (e) {
+        // silent fail for background poll
       }
     }, 3000);
     return () => clearInterval(interval);

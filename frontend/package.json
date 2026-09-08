@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.63.1",
+    "@types/plotly.js-dist-min": "^2.3.4",
     "lucide-react": "^1.16.0",
+    "plotly.js-dist-min": "^4.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.3",

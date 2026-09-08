@@ -1,104 +1,150 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
+import { PlotlyChart } from './PlotlyChart';
 import type { NetworkData } from '../types';
 
 interface NetworkViewProps {
   network?: NetworkData;
 }
 
-const COMMUNITY_PALETTE = [
-  '#6366f1', '#ec4899', '#10b981', '#f59e0b', '#06b6d4',
-  '#8b5cf6', '#3b82f6', '#f43f5e', '#84cc16', '#14b8a6'
-];
-
 export const NetworkView: React.FC<NetworkViewProps> = ({
   network = { nodes: [], edges: [], kols: [], node_count: 0, edge_count: 0, kol_count: 0 },
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
   const nodes = network?.nodes || [];
   const edges = network?.edges || [];
   const kols = network?.kols || [];
 
-  // Render network graph canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // Compute 2D Spring / Force layout for Plotly
+  const plotData = useMemo(() => {
+    if (nodes.length === 0) return [];
 
-    canvas.width = canvas.parentElement?.clientWidth || 800;
-    canvas.height = 480;
+    const displayNodes = nodes.slice(0, 150);
+    const n = displayNodes.length;
+    const nodeIndex = new Map<string, number>();
+    displayNodes.forEach((node, idx) => nodeIndex.set(node.handle, idx));
 
-    const width = canvas.width;
-    const height = canvas.height;
+    // Initial circular coordinates
+    const positions = displayNodes.map((_, idx) => {
+      const angle = (idx / n) * 2 * Math.PI;
+      const radius = 200 + Math.sin(idx * 7) * 40;
+      return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+    });
 
-    // Background
-    ctx.fillStyle = '#09090b';
-    ctx.fillRect(0, 0, width, height);
+    // Spring-electrical iterations
+    const k = 180 / Math.sqrt(Math.max(n, 1));
+    const iterations = 40;
 
-    if (nodes.length === 0) {
-      ctx.fillStyle = '#71717a';
-      ctx.font = '12px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('No network nodes available', width / 2, height / 2);
-      return;
+    for (let iter = 0; iter < iterations; iter++) {
+      const disp = positions.map(() => ({ dx: 0, dy: 0 }));
+
+      // Repulsion between all nodes
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const dx = positions[i].x - positions[j].x;
+          const dy = positions[i].y - positions[j].y;
+          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+          const force = (k * k) / dist;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+
+          disp[i].dx += fx;
+          disp[i].dy += fy;
+          disp[j].dx -= fx;
+          disp[j].dy -= fy;
+        }
+      }
+
+      // Attraction along edges
+      edges.forEach((edge) => {
+        const u = nodeIndex.get(edge.source_handle);
+        const v = nodeIndex.get(edge.target_handle);
+        if (u !== undefined && v !== undefined && u < n && v < n) {
+          const dx = positions[u].x - positions[v].x;
+          const dy = positions[u].y - positions[v].y;
+          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+          const force = (dist * dist) / k;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+
+          disp[u].dx -= fx;
+          disp[u].dy -= fy;
+          disp[v].dx += fx;
+          disp[v].dy += fy;
+        }
+      });
+
+      // Update positions
+      const step = 0.15;
+      for (let i = 0; i < n; i++) {
+        positions[i].x += disp[i].dx * step;
+        positions[i].y += disp[i].dy * step;
+      }
     }
 
-    // Force/Spring 2D layout approximation
-    const displayNodes = nodes.slice(0, 100);
-    const nodePositions = new Map<string, { x: number; y: number; r: number; color: string; handle: string; is_kol: boolean }>();
+    // Build Edge Scatter trace (disjoint lines with null separators)
+    const edgeX: (number | null)[] = [];
+    const edgeY: (number | null)[] = [];
 
-    displayNodes.forEach((n, idx) => {
-      const angle = (idx / displayNodes.length) * Math.PI * 2;
-      const eig = n.eigenvector_centrality || 0;
-      const radius = 120 + Math.sin(idx * 7) * 60;
-      const isKol = n.is_kol === 1;
-      const r = Math.max(5, Math.min(18, 5 + eig * 80));
-      const color = COMMUNITY_PALETTE[(n.community_id || 0) % COMMUNITY_PALETTE.length];
-
-      nodePositions.set(n.handle, {
-        x: width / 2 + Math.cos(angle) * radius,
-        y: height / 2 + Math.sin(angle) * radius,
-        r,
-        color,
-        handle: n.handle,
-        is_kol: isKol,
-      });
-    });
-
-    // Draw Edges
-    ctx.strokeStyle = 'rgba(113, 113, 122, 0.4)';
-    ctx.lineWidth = 0.8;
     edges.forEach((edge) => {
-      const src = nodePositions.get(edge.source_handle);
-      const tgt = nodePositions.get(edge.target_handle);
-      if (src && tgt) {
-        ctx.beginPath();
-        ctx.moveTo(src.x, src.y);
-        ctx.lineTo(tgt.x, tgt.y);
-        ctx.stroke();
+      const u = nodeIndex.get(edge.source_handle);
+      const v = nodeIndex.get(edge.target_handle);
+      if (u !== undefined && v !== undefined && u < n && v < n) {
+        edgeX.push(positions[u].x, positions[v].x, null);
+        edgeY.push(positions[u].y, positions[v].y, null);
       }
     });
 
-    // Draw Nodes
-    nodePositions.forEach((node) => {
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
-      ctx.fillStyle = node.color;
-      ctx.fill();
-      ctx.strokeStyle = node.is_kol ? '#ffffff' : 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = node.is_kol ? 2 : 1;
-      ctx.stroke();
+    const edgeTrace = {
+      x: edgeX,
+      y: edgeY,
+      mode: 'lines' as const,
+      line: { width: 0.8, color: 'rgba(113, 113, 122, 0.4)' },
+      hoverinfo: 'none' as const,
+      showlegend: false,
+      type: 'scatter' as const,
+    };
 
-      // Node text label
-      if (node.is_kol || node.r > 8) {
-        ctx.fillStyle = '#e4e4e7';
-        ctx.font = '9px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(node.handle, node.x, node.y - node.r - 3);
-      }
-    });
-  }, [network, nodes, edges]);
+    // Build Node Scatter trace
+    const nodeX = positions.map((p) => p.x);
+    const nodeY = positions.map((p) => p.y);
+    const nodeText = displayNodes.map((d) => d.handle);
+    const hoverText = displayNodes.map(
+      (d) =>
+        `<b>@${d.handle}</b><br>Eigenvector: ${(d.eigenvector_centrality || 0).toFixed(4)}<br>Degree: ${(d.degree_centrality || 0).toFixed(4)}<br>Community: #${d.community_id || 0}${d.is_kol ? '<br><b>🌟 Key Opinion Leader</b>' : ''}`
+    );
+    const nodeSizes = displayNodes.map((d) => Math.max(10, Math.min(36, 12 + (d.eigenvector_centrality || 0) * 160)));
+    const nodeColors = displayNodes.map((d) => d.community_id || 0);
+
+    const nodeTrace = {
+      x: nodeX,
+      y: nodeY,
+      mode: 'markers+text' as const,
+      text: displayNodes.map((d) => (d.is_kol || (d.eigenvector_centrality || 0) > 0.05 ? d.handle : '')),
+      textposition: 'top center' as const,
+      textfont: { size: 9, color: '#e4e4e7' },
+      hoverinfo: 'text' as const,
+      hovertext: hoverText,
+      marker: {
+        size: nodeSizes,
+        color: nodeColors,
+        colorscale: 'Viridis',
+        showscale: true,
+        colorbar: {
+          title: { text: 'Community', font: { size: 10, color: '#a1a1aa' } },
+          tickfont: { size: 9, color: '#a1a1aa' },
+          thickness: 12,
+          len: 0.7,
+        },
+        line: {
+          width: displayNodes.map((d) => (d.is_kol ? 2 : 1)),
+          color: displayNodes.map((d) => (d.is_kol ? '#ffffff' : 'rgba(255,255,255,0.2)')),
+        },
+      },
+      showlegend: false,
+      type: 'scatter' as const,
+    };
+
+    return [edgeTrace, nodeTrace];
+  }, [nodes, edges]);
 
   return (
     <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
@@ -167,13 +213,35 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
       {/* Network Graph Visualizer */}
       <div className="space-y-2">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
-          Network Graph
-        </h4>
-        <div className="overflow-hidden rounded-xl border border-neutral-800">
-          <canvas ref={canvasRef} className="w-full" />
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+            Interactive Network Graph
+          </h4>
+          <span className="text-[11px] text-neutral-400">
+            Scroll to zoom • Drag to pan • Hover for details • Toolbar top-right
+          </span>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/60 p-2">
+          {plotData.length > 0 ? (
+            <PlotlyChart
+              className="w-full h-[520px]"
+              data={plotData as any}
+              layout={{
+                showlegend: false,
+                hovermode: 'closest',
+                xaxis: { showgrid: false, zeroline: false, showticklabels: false },
+                yaxis: { showgrid: false, zeroline: false, showticklabels: false },
+                margin: { l: 10, r: 10, t: 10, b: 10 },
+              }}
+            />
+          ) : (
+            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+              No network nodes available
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
+

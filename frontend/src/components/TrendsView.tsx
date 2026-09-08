@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from 'recharts';
+import { PlotlyChart } from './PlotlyChart';
 import type { TrendsData } from '../types';
 
 interface TrendsViewProps {
@@ -19,7 +11,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
 }) => {
   const latestTrends = trendsData?.latest_trends || [];
   const uniqueKeywords = trendsData?.unique_keywords || [];
-  
+
   const [selectedKeyword, setSelectedKeyword] = useState<string>(
     uniqueKeywords[0] || (latestTrends[0]?.keyword ?? '')
   );
@@ -30,13 +22,34 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
 
   const keywordTimeline = trendsData?.keyword_timelines?.[activeKeyword] || [];
 
+  const timelineDates = keywordTimeline.map((item) => (item.window_start || '').slice(0, 10));
+  const timelineFreqs = keywordTimeline.map((item) => item.frequency || item.count || 0);
+
+  const trendPlotlyData: Plotly.Data[] = [
+    {
+      x: timelineDates,
+      y: timelineFreqs,
+      type: 'scatter',
+      mode: 'lines',
+      connectgaps: false,
+      line: { color: '#818cf8', width: 2 },
+      name: activeKeyword,
+      hovertemplate: '%{x}: %{y} mentions<extra></extra>',
+    },
+  ];
+
   return (
     <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
-      <div className="border-b border-neutral-800 pb-4">
-        <h3 className="text-base font-bold text-white">Trending Terms</h3>
-        <p className="text-xs text-neutral-400">
-          TF-IDF keyword burst detection across sliding time windows
-        </p>
+      <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+        <div>
+          <h3 className="text-base font-bold text-white">Trending Terms</h3>
+          <p className="text-xs text-neutral-400">
+            TF-IDF keyword burst detection across sliding time windows
+          </p>
+        </div>
+        <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-medium text-indigo-400">
+          Interactive Plotly
+        </span>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -45,7 +58,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
             Top terms (latest window)
           </h4>
-          
+
           <div className="space-y-2 mt-2">
             {latestTrends.slice(0, 10).map((row, idx) => (
               <div
@@ -73,7 +86,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
             <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
               Trend over time
             </h4>
-            
+
             {uniqueKeywords.length > 0 && (
               <div className="flex items-center gap-2">
                 <label className="text-xs text-neutral-400">Select keyword:</label>
@@ -92,32 +105,26 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
             )}
           </div>
 
-          <div className="h-64 mt-2 rounded-xl border border-neutral-800 bg-neutral-950/40 p-2">
+          <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-950/40 p-2">
             {keywordTimeline.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={keywordTimeline}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                  <XAxis dataKey="window_start" stroke="#71717a" fontSize={10} tickFormatter={(val) => (val || '').slice(0, 10)} />
-                  <YAxis stroke="#71717a" fontSize={11} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', fontSize: '12px' }}
-                    itemStyle={{ color: '#ffffff' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="frequency"
-                    stroke="#818cf8"
-                    strokeWidth={2.5}
-                    dot={{ r: 4, fill: '#818cf8' }}
-                    name={activeKeyword}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <PlotlyChart
+                data={trendPlotlyData}
+                layout={{
+                  title: { text: activeKeyword, font: { size: 12, color: '#e4e4e7' } },
+                  height: 250,
+                  margin: { l: 40, r: 20, t: 30, b: 35 },
+                  xaxis: {
+                    title: { text: 'Date', font: { size: 11, color: '#71717a' } },
+                  },
+                  yaxis: {
+                    title: { text: 'Frequency', font: { size: 11, color: '#71717a' } },
+                  },
+                }}
+                className="h-64 w-full"
+              />
             ) : (
-              <div className="flex h-full items-center justify-center">
-                <p className="text-xs text-neutral-500">
-                  {activeKeyword ? `No timeline data for "${activeKeyword}"` : 'Select a keyword'}
-                </p>
+              <div className="flex h-60 items-center justify-center text-xs text-neutral-500">
+                {activeKeyword ? `No timeline data for "${activeKeyword}"` : 'Select a keyword'}
               </div>
             )}
           </div>

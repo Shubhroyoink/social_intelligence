@@ -1,16 +1,5 @@
 import React from 'react';
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from 'recharts';
+import { PlotlyChart } from './PlotlyChart';
 import type { DemographicsSummary } from '../types';
 
 interface DemographicsViewProps {
@@ -25,21 +14,13 @@ const PIE_COLORS = [
 export const DemographicsView: React.FC<DemographicsViewProps> = ({
   demographics = { languages: {}, geo: {}, interests: {} },
 }) => {
-  const langData = Object.entries(demographics?.languages || {}).map(([language, count], i) => ({
-    name: language.toUpperCase(),
-    value: count,
-    color: PIE_COLORS[i % PIE_COLORS.length],
-  })).sort((a, b) => b.value - a.value);
+  const languages = demographics?.languages || {};
+  const geo = demographics?.geo || {};
+  const interests = demographics?.interests || {};
 
-  const geoData = Object.entries(demographics?.geo || {}).map(([region, count]) => ({
-    region,
-    count,
-  })).sort((a, b) => a.count - b.count).slice(0, 15);
-
-  const interestData = Object.entries(demographics?.interests || {}).map(([interest, count]) => ({
-    interest,
-    count,
-  })).sort((a, b) => a.count - b.count);
+  const langEntries = Object.entries(languages).sort((a, b) => b[1] - a[1]);
+  const geoEntries = Object.entries(geo).sort((a, b) => a[1] - b[1]).slice(0, 15);
+  const interestEntries = Object.entries(interests).sort((a, b) => a[1] - b[1]);
 
   return (
     <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
@@ -51,34 +32,31 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Column 1: Language Distribution */}
         <div className="flex flex-col justify-between rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2">
             Language Distribution
           </h4>
 
-          <div className="mt-2 h-56 flex items-center justify-center">
-            {langData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={langData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={75}
-                    paddingAngle={3}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {langData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', fontSize: '12px' }}
-                    itemStyle={{ color: '#ffffff' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+          <div className="h-64 flex items-center justify-center">
+            {langEntries.length > 0 ? (
+              <PlotlyChart
+                className="w-full h-full"
+                data={[
+                  {
+                    labels: langEntries.map(([k]) => k.toUpperCase()),
+                    values: langEntries.map(([, v]) => v),
+                    type: 'pie',
+                    hole: 0.4,
+                    marker: { colors: PIE_COLORS },
+                    textinfo: 'label+percent',
+                    hoverinfo: 'label+value+percent',
+                  } as any,
+                ]}
+                layout={{
+                  showlegend: true,
+                  legend: { orientation: 'h', y: -0.2, x: 0 },
+                  margin: { l: 15, r: 15, t: 15, b: 20 },
+                }}
+              />
             ) : (
               <p className="text-xs text-neutral-500">No language data</p>
             )}
@@ -87,24 +65,30 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
 
         {/* Column 2: Geographic Mentions */}
         <div className="flex flex-col justify-between rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2">
             Geographic Mentions
           </h4>
 
-          <div className="mt-2 h-56">
-            {geoData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={geoData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
-                  <XAxis type="number" stroke="#71717a" fontSize={10} />
-                  <YAxis type="category" dataKey="region" stroke="#71717a" fontSize={10} width={80} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', fontSize: '12px' }}
-                    itemStyle={{ color: '#ffffff' }}
-                  />
-                  <Bar dataKey="count" fill="#f43f5e" radius={[0, 4, 4, 0]} name="Mentions" />
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="h-64">
+            {geoEntries.length > 0 ? (
+              <PlotlyChart
+                className="w-full h-full"
+                data={[
+                  {
+                    x: geoEntries.map(([, v]) => v),
+                    y: geoEntries.map(([k]) => k),
+                    type: 'bar',
+                    orientation: 'h',
+                    marker: { color: '#f43f5e' },
+                    hoverinfo: 'x+y',
+                  } as any,
+                ]}
+                layout={{
+                  xaxis: { title: { text: 'Mentions', font: { size: 10 } } },
+                  yaxis: { automargin: true },
+                  margin: { l: 80, r: 20, t: 15, b: 35 },
+                }}
+              />
             ) : (
               <div className="flex h-full items-center justify-center">
                 <p className="text-xs text-neutral-500">No geographic data</p>
@@ -115,24 +99,30 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
 
         {/* Column 3: Professional Interests */}
         <div className="flex flex-col justify-between rounded-xl border border-neutral-800 bg-neutral-950/40 p-4">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300 mb-2">
             Professional Interests
           </h4>
 
-          <div className="mt-2 h-56">
-            {interestData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={interestData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
-                  <XAxis type="number" stroke="#71717a" fontSize={10} />
-                  <YAxis type="category" dataKey="interest" stroke="#71717a" fontSize={10} width={85} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '8px', fontSize: '12px' }}
-                    itemStyle={{ color: '#ffffff' }}
-                  />
-                  <Bar dataKey="count" fill="#10b981" radius={[0, 4, 4, 0]} name="Posts" />
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="h-64">
+            {interestEntries.length > 0 ? (
+              <PlotlyChart
+                className="w-full h-full"
+                data={[
+                  {
+                    x: interestEntries.map(([, v]) => v),
+                    y: interestEntries.map(([k]) => k),
+                    type: 'bar',
+                    orientation: 'h',
+                    marker: { color: '#10b981' },
+                    hoverinfo: 'x+y',
+                  } as any,
+                ]}
+                layout={{
+                  xaxis: { title: { text: 'Posts', font: { size: 10 } } },
+                  yaxis: { automargin: true },
+                  margin: { l: 85, r: 20, t: 15, b: 35 },
+                }}
+              />
             ) : (
               <div className="flex h-full items-center justify-center">
                 <p className="text-xs text-neutral-500">No interest data</p>
@@ -144,3 +134,4 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
     </div>
   );
 };
+
