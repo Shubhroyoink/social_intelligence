@@ -9,19 +9,19 @@ interface EmotionViewProps {
 }
 
 const EMOTION_COLORS: Record<string, string> = {
-  anger: '#e74c3c',
-  disgust: '#8e44ad',
-  fear: '#e67e22',
-  joy: '#2ecc71',
-  neutral: '#95a5a6',
-  sadness: '#3498db',
-  surprise: '#f1c40f',
+  anger: '#dc2626',
+  disgust: '#7c3aed',
+  fear: '#ea580c',
+  joy: '#16a34a',
+  neutral: '#475569',
+  sadness: '#0284c7',
+  surprise: '#ca8a04',
 };
 
 const STANCE_COLORS: Record<string, string> = {
-  supportive: '#2ca02c',
-  against: '#d62728',
-  neutral: '#999999',
+  supportive: '#16a34a',
+  against: '#dc2626',
+  neutral: '#475569',
 };
 
 export const EmotionView: React.FC<EmotionViewProps> = ({
@@ -41,7 +41,8 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
       type: 'bar',
       orientation: 'h',
       marker: {
-        color: emotionEntries.map((e) => EMOTION_COLORS[e[0]] || '#95a5a6'),
+        color: emotionEntries.map((e) => EMOTION_COLORS[e[0]] || '#475569'),
+        line: { color: '#000000', width: 1.5 },
       },
       hovertemplate: '%{y}: %{x} posts<extra></extra>',
     },
@@ -100,8 +101,8 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
       type: 'pie',
       hole: 0.4,
       marker: {
-        colors: stanceKeys.map((k) => STANCE_COLORS[k] || '#999999'),
-        line: { color: '#18181b', width: 2 },
+        colors: stanceKeys.map((k) => STANCE_COLORS[k] || '#475569'),
+        line: { color: '#000000', width: 2 },
       },
       hoverinfo: 'label+value+percent',
     },
@@ -113,59 +114,62 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
     uirevision: 'emotion_timeline_state',
     margin: { l: 55, r: 120, t: 25, b: 50 },
     xaxis: {
-      title: { text: 'Date', font: { size: 12, color: '#e4e4e7' } },
+      title: { text: 'Date', font: { size: 12, color: '#000000' } },
       type: 'date' as const,
       fixedrange: false,
       showgrid: true,
-      gridcolor: 'rgba(255, 255, 255, 0.08)',
+      gridcolor: '#e5e7eb',
+      tickfont: { color: '#000000', size: 10 },
     },
     yaxis: {
-      title: { text: 'Percentage', font: { size: 12, color: '#e4e4e7' } },
+      title: { text: 'Percentage', font: { size: 12, color: '#000000' } },
       range: [-2, 48],
       dtick: 10,
       fixedrange: false,
       showgrid: true,
-      gridcolor: 'rgba(255, 255, 255, 0.08)',
+      gridcolor: '#e5e7eb',
+      tickfont: { color: '#000000', size: 10 },
     },
     legend: {
-      title: { text: 'Emotion', font: { size: 12, color: '#e4e4e7' } },
+      title: { text: 'Emotion', font: { size: 12, color: '#000000' } },
       orientation: 'v' as const,
       x: 1.02,
       y: 0.95,
-      bgcolor: 'transparent',
-      bordercolor: 'transparent',
+      bgcolor: '#ffffff',
+      bordercolor: '#000000',
+      borderwidth: 2,
     },
   }), []);
 
   return (
     <div className="space-y-6">
       {/* 1. Emotion Analysis Header Row */}
-      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Emotion Analysis</h3>
-          <span className="rounded-full border border-neutral-700 bg-neutral-800/60 px-2.5 py-0.5 text-[11px] font-medium text-neutral-300">
+      <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo">
+        <div className="flex items-center justify-between border-b-2 border-black pb-3">
+          <h3 className="text-base font-black text-black uppercase tracking-wide">Emotion Analysis</h3>
+          <span className="rounded-md border-2 border-black bg-neutral-100 px-2.5 py-0.5 text-[11px] font-black text-black shadow-neo-sm">
             j-hartmann/emotion-distilroberta
           </span>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-4">
           {/* Left Column (Sarcasm + Stance Text) */}
-          <div className="space-y-4 border-b border-neutral-800 pb-4 lg:border-b-0 lg:border-r lg:pr-6">
-            <div>
-              <span className="text-xs font-semibold text-neutral-400">Sarcasm Detected</span>
-              <div className="text-2xl font-bold text-amber-400 mt-0.5">
+          <div className="space-y-4 border-b-2 border-black pb-4 lg:border-b-0 lg:border-r-2 lg:pr-6">
+            <div className="rounded-lg border-2 border-black bg-neutral-100 p-3 shadow-neo-sm">
+              <span className="text-xs font-black uppercase text-neutral-600">Sarcasm Detected</span>
+              <div className="text-2xl font-black text-black mt-0.5">
                 {(sarcasm_pct || 0).toFixed(1)}%
               </div>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-neutral-800">
-              <span className="text-xs font-bold text-white block">Stance Breakdown</span>
+            <div className="space-y-2 pt-2 border-t-2 border-black">
+              <span className="text-xs font-black uppercase tracking-wide text-black block">Stance Breakdown</span>
               {Object.entries(stance_counts || {}).map(([stance, count]) => {
                 const pct = totalEmotions > 0 ? (count / totalEmotions) * 100 : 0;
                 return (
-                  <div key={stance} className="text-xs text-neutral-300 flex justify-between">
-                    <span className="font-medium capitalize text-neutral-300">{stance}:</span>
-                    <span className="font-mono text-neutral-200">
+                  <div key={stance} className="text-xs text-black flex justify-between font-bold py-1 border-b border-neutral-200">
+                    <span className="capitalize">{stance}:</span>
+                    <span className="font-black text-black">
                       {count} ({pct.toFixed(1)}%)
                     </span>
                   </div>
@@ -182,13 +186,13 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
                 layout={{
                   height: 260,
                   margin: { l: 85, r: 20, t: 20, b: 35 },
-                  xaxis: { title: { text: 'Posts', font: { size: 11, color: '#71717a' } } },
-                  yaxis: { title: { text: 'Emotion', standoff: 20, font: { size: 11, color: '#71717a' } }, dtick: 1, automargin: true },
+                  xaxis: { title: { text: 'Posts', font: { size: 11, color: '#000000' } }, tickfont: { color: '#000000', size: 10 } },
+                  yaxis: { title: { text: 'Emotion', standoff: 20, font: { size: 11, color: '#000000' } }, tickfont: { color: '#000000', size: 10 }, dtick: 1, automargin: true },
                 }}
                 className="h-64 w-full"
               />
             ) : (
-              <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+              <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
                 No emotion data available
               </div>
             )}
@@ -197,15 +201,15 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
       </div>
 
       {/* 2. Emotion Timeline (Interactive Pan/Zoom/Download) */}
-      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-3">
+      <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-black pb-3">
           <div>
-            <h3 className="text-base font-bold text-white">Emotion Timeline</h3>
-            <p className="text-xs text-neutral-400">
+            <h3 className="text-base font-black text-black uppercase tracking-wide">Emotion Timeline</h3>
+            <p className="text-xs font-semibold text-neutral-600">
               Daily percentage breakdown across all 7 primary emotions • Zoom, pan, or isolate dimensions
             </p>
           </div>
-          <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-2.5 py-0.5 text-[11px] font-medium text-purple-400">
+          <span className="rounded-md border-2 border-black bg-neutral-100 px-2.5 py-0.5 text-[11px] font-black text-black shadow-neo-sm">
             7 Dimensions
           </span>
         </div>
@@ -218,7 +222,7 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
               className="h-[520px] w-full"
             />
           ) : (
-            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+            <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
               Timeline requires posts across multiple dates
             </div>
           )}
@@ -226,11 +230,11 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
       </div>
 
       {/* 3. Stance Analysis */}
-      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
+      <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo">
+        <div className="flex items-center justify-between border-b-2 border-black pb-3">
           <div>
-            <h3 className="text-sm font-bold text-white">Stance Analysis</h3>
-            <p className="text-xs text-neutral-400">Inferred viewpoint orientation (supportive, against, neutral)</p>
+            <h3 className="text-base font-black text-black uppercase tracking-wide">Stance Analysis</h3>
+            <p className="text-xs font-semibold text-neutral-600">Inferred viewpoint orientation (supportive, against, neutral)</p>
           </div>
         </div>
 
@@ -247,7 +251,7 @@ export const EmotionView: React.FC<EmotionViewProps> = ({
               className="h-72 w-full"
             />
           ) : (
-            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+            <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
               No stance data available
             </div>
           )}

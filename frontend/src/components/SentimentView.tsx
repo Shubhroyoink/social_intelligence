@@ -8,11 +8,11 @@ interface SentimentViewProps {
   timeline?: Array<{ date: string; positive: number; neutral: number; negative: number; count: number }>;
 }
 
-// Exact colors matching Streamlit px.line in noo streamlit.png
+// High-contrast colors with clear visibility on white/light backgrounds
 const STREAMLIT_COLORS = {
-  positive: '#4ba3e3', // Sky blue
-  neutral: '#2563eb',  // Royal/deep blue
-  negative: '#f87171', // Coral pink/salmon red
+  positive: '#0284c7', // Rich vibrant blue
+  neutral: '#475569',  // Solid slate / dark gray
+  negative: '#dc2626', // Crimson red
 };
 
 export const SentimentView: React.FC<SentimentViewProps> = ({
@@ -38,7 +38,7 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
       hoverinfo: 'label+value+percent',
       marker: {
         colors: pieColors,
-        line: { color: '#18181b', width: 2 },
+        line: { color: '#000000', width: 2 },
       },
     },
   ];
@@ -154,7 +154,10 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
       y: computedPlatformData.map((p) => p.positive),
       name: 'positive',
       type: 'bar',
-      marker: { color: STREAMLIT_COLORS.positive },
+      marker: {
+        color: STREAMLIT_COLORS.positive,
+        line: { color: '#000000', width: 1.5 },
+      },
       hovertemplate: '%{y:.1f}%<extra>positive</extra>',
     },
     {
@@ -162,7 +165,10 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
       y: computedPlatformData.map((p) => p.neutral),
       name: 'neutral',
       type: 'bar',
-      marker: { color: STREAMLIT_COLORS.neutral },
+      marker: {
+        color: STREAMLIT_COLORS.neutral,
+        line: { color: '#000000', width: 1.5 },
+      },
       hovertemplate: '%{y:.1f}%<extra>neutral</extra>',
     },
     {
@@ -170,7 +176,10 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
       y: computedPlatformData.map((p) => p.negative),
       name: 'negative',
       type: 'bar',
-      marker: { color: STREAMLIT_COLORS.negative },
+      marker: {
+        color: STREAMLIT_COLORS.negative,
+        line: { color: '#000000', width: 1.5 },
+      },
       hovertemplate: '%{y:.1f}%<extra>negative</extra>',
     },
   ];
@@ -181,41 +190,44 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
     uirevision: 'sentiment_timeline_state',
     margin: { l: 55, r: 120, t: 25, b: 50 },
     xaxis: {
-      title: { text: 'Date', font: { size: 12, color: '#e4e4e7' } },
+      title: { text: 'Date', font: { size: 12, color: '#000000' } },
       type: 'date' as const,
       range: initialXRange,
       fixedrange: false,
       showgrid: true,
-      gridcolor: 'rgba(255, 255, 255, 0.08)',
+      gridcolor: '#e5e7eb',
+      tickfont: { color: '#000000', size: 10 },
     },
     yaxis: {
-      title: { text: 'Percentage', font: { size: 12, color: '#e4e4e7' } },
+      title: { text: 'Percentage', font: { size: 12, color: '#000000' } },
       range: [-2, 48],
       dtick: 10,
       fixedrange: false,
       showgrid: true,
-      gridcolor: 'rgba(255, 255, 255, 0.08)',
+      gridcolor: '#e5e7eb',
+      tickfont: { color: '#000000', size: 10 },
     },
     legend: {
-      title: { text: 'Sentiment', font: { size: 12, color: '#e4e4e7' } },
+      title: { text: 'Sentiment', font: { size: 12, color: '#000000' } },
       orientation: 'v' as const,
       x: 1.02,
       y: 0.95,
-      bgcolor: 'transparent',
-      bordercolor: 'transparent',
+      bgcolor: '#ffffff',
+      bordercolor: '#000000',
+      borderwidth: 2,
     },
   }), [initialXRange]);
 
   return (
     <div className="space-y-6">
       {/* 1. Sentiment Distribution */}
-      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
+      <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo">
+        <div className="flex items-center justify-between border-b-2 border-black pb-3">
           <div>
-            <h3 className="text-sm font-bold text-white">Sentiment Distribution</h3>
-            <p className="text-xs text-neutral-400">Classified using Cardiff NLP Twitter-RoBERTa</p>
+            <h3 className="text-base font-black text-black uppercase tracking-wide">Sentiment Distribution</h3>
+            <p className="text-xs font-semibold text-neutral-600">Classified using Cardiff NLP Twitter-RoBERTa</p>
           </div>
-          <span className="rounded-full border border-neutral-700 bg-neutral-800/60 px-2.5 py-0.5 text-[11px] font-medium text-neutral-300">
+          <span className="rounded-md border-2 border-black bg-neutral-100 px-2.5 py-0.5 text-[11px] font-black text-black shadow-neo-sm">
             Interactive Plotly
           </span>
         </div>
@@ -233,7 +245,7 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
               className="h-72 w-full"
             />
           ) : (
-            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+            <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
               No sentiment data available
             </div>
           )}
@@ -241,16 +253,16 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
       </div>
 
       {/* 2. Sentiment Timeline (Exact Full Interactive Plotly with Pan/Zoom/Download) */}
-      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-3">
+      <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-black pb-3">
           <div>
-            <h3 className="text-base font-bold text-white">Sentiment Timeline</h3>
-            <p className="text-xs text-neutral-400">
+            <h3 className="text-base font-black text-black uppercase tracking-wide">Sentiment Timeline</h3>
+            <p className="text-xs font-semibold text-neutral-600">
               Daily percentage of positive, neutral, and negative posts • Drag to pan in any direction, scroll to zoom
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-neutral-700 bg-neutral-800/60 px-2.5 py-0.5 text-[11px] font-medium text-neutral-300">
+            <span className="rounded-md border-2 border-black bg-black px-2.5 py-0.5 text-[11px] font-black text-white shadow-neo-sm">
               Pan & Scroll Zoom Active
             </span>
           </div>
@@ -264,7 +276,7 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
               className="h-[520px] w-full"
             />
           ) : (
-            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+            <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
               Timeline requires posts across multiple dates
             </div>
           )}
@@ -272,11 +284,11 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
       </div>
 
       {/* 3. Sentiment by Platform */}
-      <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
+      <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo">
+        <div className="flex items-center justify-between border-b-2 border-black pb-3">
           <div>
-            <h3 className="text-sm font-bold text-white">Sentiment by Platform</h3>
-            <p className="text-xs text-neutral-400">
+            <h3 className="text-base font-black text-black uppercase tracking-wide">Sentiment by Platform</h3>
+            <p className="text-xs font-semibold text-neutral-600">
               Percentage distribution normalized per platform (YouTube, Telegram, X)
             </p>
           </div>
@@ -288,26 +300,34 @@ export const SentimentView: React.FC<SentimentViewProps> = ({
               data={platformChartData}
               layout={{
                 barmode: 'group',
-                height: 300,
-                margin: { l: 45, r: 25, t: 20, b: 40 },
+                height: 320,
+                margin: { l: 55, r: 25, t: 25, b: 45 },
+                dragmode: false,
                 xaxis: {
-                  title: { text: 'Platform', font: { size: 11, color: '#71717a' } },
+                  title: { text: 'Platform', font: { size: 12, color: '#000000' } },
+                  tickfont: { color: '#000000', size: 11 },
+                  fixedrange: true,
                 },
                 yaxis: {
-                  title: { text: 'Percentage', font: { size: 11, color: '#71717a' } },
+                  title: { text: 'Percentage', font: { size: 12, color: '#000000' } },
+                  tickfont: { color: '#000000', size: 11 },
                   range: [0, 100],
                   ticksuffix: '%',
+                  fixedrange: true,
+                  showgrid: true,
+                  gridcolor: '#e5e7eb',
                 },
                 legend: {
                   orientation: 'h',
                   x: 0.3,
-                  y: 1.12,
+                  y: 1.15,
+                  font: { size: 11, color: '#000000' },
                 },
               }}
-              className="h-76 w-full"
+              className="h-80 w-full"
             />
           ) : (
-            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+            <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
               No platform breakdown data available
             </div>
           )}

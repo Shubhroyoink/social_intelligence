@@ -66,13 +66,13 @@ export function formatLanguageLabel(code: string): string {
   return clean ? clean.toUpperCase() : 'Unknown';
 }
 
-// Streamlit Plotly Express discrete palette
+// High contrast discrete palette
 const PIE_COLORS = [
-  '#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A',
-  '#19D3F3', '#FF6692', '#B6E880', '#FF97FF', '#FECB52'
+  '#2563eb', '#dc2626', '#16a34a', '#7c3aed', '#ea580c',
+  '#0891b2', '#db2777', '#475569', '#9333ea', '#d97706'
 ];
 
-const STREAMLIT_BAR_COLOR = '#7ec8fc'; // Sky blue matching visual stream.png
+const STREAMLIT_BAR_COLOR = '#2563eb'; // Royal blue with black border
 
 export const DemographicsView: React.FC<DemographicsViewProps> = ({
   demographics = { languages: {}, geo: {}, interests: {} },
@@ -94,7 +94,10 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
       values: langEntries.map(([, v]) => v),
       type: 'pie',
       hole: 0.4,
-      marker: { colors: PIE_COLORS },
+      marker: {
+        colors: PIE_COLORS,
+        line: { color: '#000000', width: 1.5 },
+      },
       textinfo: 'percent',
       textposition: 'inside',
       insidetextorientation: 'horizontal',
@@ -109,7 +112,10 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
       y: geoEntries.map(([k]) => k),
       type: 'bar',
       orientation: 'h',
-      marker: { color: STREAMLIT_BAR_COLOR },
+      marker: {
+        color: STREAMLIT_BAR_COLOR,
+        line: { color: '#000000', width: 1.5 },
+      },
       hovertemplate: '<b>Region: %{y}</b><br>Mentions: <b>%{x} posts</b><extra></extra>',
     } as any,
   ];
@@ -121,25 +127,28 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
       y: interestEntries.map(([k]) => k),
       type: 'bar',
       orientation: 'h',
-      marker: { color: STREAMLIT_BAR_COLOR },
+      marker: {
+        color: STREAMLIT_BAR_COLOR,
+        line: { color: '#000000', width: 1.5 },
+      },
       hovertemplate: '<b>Category: %{y}</b><br>Posts: <b>%{x} posts</b><extra></extra>',
     } as any,
   ];
 
   return (
-    <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
+    <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+      <div className="flex items-center justify-between border-b-2 border-black pb-3">
         <div>
-          <h3 className="text-base font-bold text-white">Demographics</h3>
-          <p className="text-xs text-neutral-400">Inferred linguistic, geographic, and domain intelligence</p>
+          <h3 className="text-base font-black text-black uppercase tracking-wide">Demographics</h3>
+          <p className="text-xs font-semibold text-neutral-600">Inferred linguistic, geographic, and domain intelligence</p>
         </div>
         <button
           onClick={() => setFullscreenModal('all')}
-          className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800/80 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+          className="neo-btn flex items-center gap-1.5 rounded-lg bg-black px-3.5 py-1.5 text-xs font-black text-white hover:bg-neutral-800"
           title="Open Fullscreen Demographics View"
         >
-          <Maximize2 className="h-3.5 w-3.5" />
+          <Maximize2 className="h-3.5 w-3.5 stroke-[2.5]" />
           Fullscreen
         </button>
       </div>
@@ -147,14 +156,14 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
       {/* 3 Columns Row matching Streamlit visual stream.png */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Column 1: Language Distribution */}
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+        <div className="rounded-lg border-2 border-black bg-white p-4 shadow-neo-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-2">
+            <h4 className="text-xs font-black uppercase tracking-wider text-black">
               Language Distribution
             </h4>
             <button
               onClick={() => setFullscreenModal('language')}
-              className="text-neutral-500 hover:text-neutral-300 p-1"
+              className="text-black hover:text-neoMain p-1"
               title="Expand chart"
             >
               <Maximize2 className="h-3.5 w-3.5" />
@@ -173,27 +182,29 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     orientation: 'v',
                     x: 1.02,
                     y: 0.95,
-                    bgcolor: 'transparent',
-                    font: { size: 11, color: '#e4e4e7' },
+                    bgcolor: '#ffffff',
+                    bordercolor: '#000000',
+                    borderwidth: 2,
+                    font: { size: 11, color: '#000000' },
                   },
                   margin: { l: 10, r: 80, t: 10, b: 10 },
                 }}
               />
             ) : (
-              <p className="text-xs text-neutral-500">No language data</p>
+              <p className="text-xs font-bold text-neutral-500">No language data</p>
             )}
           </div>
         </div>
 
         {/* Column 2: Geographic Mentions */}
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+        <div className="rounded-lg border-2 border-black bg-white p-4 shadow-neo-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-2">
+            <h4 className="text-xs font-black uppercase tracking-wider text-black">
               Geographic Mentions
             </h4>
             <button
               onClick={() => setFullscreenModal('geo')}
-              className="text-neutral-500 hover:text-neutral-300 p-1"
+              className="text-black hover:text-neoMain p-1"
               title="Expand chart"
             >
               <Maximize2 className="h-3.5 w-3.5" />
@@ -208,36 +219,37 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                 layout={{
                   height: 420,
                   xaxis: {
-                    title: { text: 'Mentions', font: { size: 11, color: '#e4e4e7' } },
-                    gridcolor: 'rgba(255, 255, 255, 0.08)',
+                    title: { text: 'Mentions', font: { size: 11, color: '#000000' } },
+                    gridcolor: '#e5e7eb',
+                    tickfont: { color: '#000000', size: 10 },
                   },
                   yaxis: {
-                    title: { text: 'Region', standoff: 25, font: { size: 11, color: '#e4e4e7' } },
+                    title: { text: 'Region', standoff: 25, font: { size: 11, color: '#000000' } },
                     automargin: true,
                     categoryorder: 'total ascending',
                     dtick: 1,
-                    tickfont: { size: 11, color: '#e4e4e7' },
+                    tickfont: { size: 11, color: '#000000' },
                   },
                   margin: { l: 125, r: 20, t: 35, b: 45 },
                 }}
               />
             ) : (
               <div className="flex h-full items-center justify-center">
-                <p className="text-xs text-neutral-500">No geographic data</p>
+                <p className="text-xs font-bold text-neutral-500">No geographic data</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Column 3: Professional Interests */}
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+        <div className="rounded-lg border-2 border-black bg-white p-4 shadow-neo-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b-2 border-black pb-2 mb-2">
+            <h4 className="text-xs font-black uppercase tracking-wider text-black">
               Professional Interests
             </h4>
             <button
               onClick={() => setFullscreenModal('interests')}
-              className="text-neutral-500 hover:text-neutral-300 p-1"
+              className="text-black hover:text-neoMain p-1"
               title="Expand chart"
             >
               <Maximize2 className="h-3.5 w-3.5" />
@@ -252,22 +264,23 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                 layout={{
                   height: 420,
                   xaxis: {
-                    title: { text: 'Posts', font: { size: 11, color: '#e4e4e7' } },
-                    gridcolor: 'rgba(255, 255, 255, 0.08)',
+                    title: { text: 'Posts', font: { size: 11, color: '#000000' } },
+                    gridcolor: '#e5e7eb',
+                    tickfont: { color: '#000000', size: 10 },
                   },
                   yaxis: {
-                    title: { text: 'Category', standoff: 25, font: { size: 11, color: '#e4e4e7' } },
+                    title: { text: 'Category', standoff: 25, font: { size: 11, color: '#000000' } },
                     automargin: true,
                     categoryorder: 'total ascending',
                     dtick: 1,
-                    tickfont: { size: 11, color: '#e4e4e7' },
+                    tickfont: { size: 11, color: '#000000' },
                   },
                   margin: { l: 140, r: 20, t: 35, b: 45 },
                 }}
               />
             ) : (
               <div className="flex h-full items-center justify-center">
-                <p className="text-xs text-neutral-500">No interest data</p>
+                <p className="text-xs font-bold text-neutral-500">No interest data</p>
               </div>
             )}
           </div>
@@ -276,31 +289,31 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
 
       {/* FULLSCREEN MODAL */}
       {fullscreenModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="relative flex h-[92vh] w-[95vw] flex-col rounded-2xl border border-neutral-700 bg-neutral-950 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative flex h-[92vh] w-[95vw] flex-col rounded-lg border-4 border-black bg-white p-6 shadow-neo-xl">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+            <div className="flex items-center justify-between border-b-2 border-black pb-4">
               <div>
-                <h2 className="text-lg font-bold text-white">
+                <h2 className="text-lg font-black uppercase text-black">
                   {fullscreenModal === 'all' && 'Demographics Overview (Fullscreen)'}
                   {fullscreenModal === 'language' && 'Language Distribution (Fullscreen)'}
                   {fullscreenModal === 'geo' && 'Geographic Mentions (Fullscreen)'}
                   {fullscreenModal === 'interests' && 'Professional Interests (Fullscreen)'}
                 </h2>
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs font-semibold text-neutral-600">
                   Full resolution interactive canvas • Zoom, pan, and inspect data points
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setFullscreenModal(null)}
-                  className="flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-850 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 hover:text-white"
+                  className="neo-btn flex items-center gap-1 rounded-lg bg-black px-3.5 py-1.5 text-xs font-black text-white hover:bg-neutral-800"
                 >
                   <Minimize2 className="h-4 w-4" /> Close Fullscreen
                 </button>
                 <button
                   onClick={() => setFullscreenModal(null)}
-                  className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                  className="rounded-lg p-1 text-black hover:bg-neutral-100"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -311,8 +324,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
             <div className="flex-1 overflow-auto pt-4">
               {fullscreenModal === 'all' && (
                 <div className="grid h-full grid-cols-1 gap-6 lg:grid-cols-3">
-                  <div className="h-[75vh] rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
-                    <h4 className="text-sm font-bold text-white mb-2">Language Distribution</h4>
+                  <div className="h-[75vh] rounded-lg border-2 border-black bg-white p-4 shadow-neo-sm">
+                    <h4 className="text-sm font-black uppercase text-black mb-2">Language Distribution</h4>
                     <PlotlyChart
                       className="w-full h-[90%]"
                       data={langChartData}
@@ -324,27 +337,27 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     />
                   </div>
 
-                  <div className="h-[75vh] rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
-                    <h4 className="text-sm font-bold text-white mb-2">Geographic Mentions</h4>
+                  <div className="h-[75vh] rounded-lg border-2 border-black bg-white p-4 shadow-neo-sm">
+                    <h4 className="text-sm font-black uppercase text-black mb-2">Geographic Mentions</h4>
                     <PlotlyChart
                       className="w-full h-[90%]"
                       data={geoChartData}
                       layout={{
-                        xaxis: { title: { text: 'Mentions' }, gridcolor: 'rgba(255,255,255,0.08)' },
-                        yaxis: { title: { text: 'Region', standoff: 30 }, automargin: true, categoryorder: 'total ascending' },
+                        xaxis: { title: { text: 'Mentions', font: { color: '#000000' } }, gridcolor: '#e5e7eb' },
+                        yaxis: { title: { text: 'Region', standoff: 30, font: { color: '#000000' } }, automargin: true, categoryorder: 'total ascending' },
                         margin: { l: 140, r: 20, t: 30, b: 50 },
                       }}
                     />
                   </div>
 
-                  <div className="h-[75vh] rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
-                    <h4 className="text-sm font-bold text-white mb-2">Professional Interests</h4>
+                  <div className="h-[75vh] rounded-lg border-2 border-black bg-white p-4 shadow-neo-sm">
+                    <h4 className="text-sm font-black uppercase text-black mb-2">Professional Interests</h4>
                     <PlotlyChart
                       className="w-full h-[90%]"
                       data={interestChartData}
                       layout={{
-                        xaxis: { title: { text: 'Posts' }, gridcolor: 'rgba(255,255,255,0.08)' },
-                        yaxis: { title: { text: 'Category', standoff: 30 }, automargin: true, categoryorder: 'total ascending' },
+                        xaxis: { title: { text: 'Posts', font: { color: '#000000' } }, gridcolor: '#e5e7eb' },
+                        yaxis: { title: { text: 'Category', standoff: 30, font: { color: '#000000' } }, automargin: true, categoryorder: 'total ascending' },
                         margin: { l: 160, r: 20, t: 30, b: 50 },
                       }}
                     />
@@ -359,7 +372,7 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     data={langChartData}
                     layout={{
                       showlegend: true,
-                      legend: { orientation: 'v', x: 1.05, y: 0.95, font: { size: 13 } },
+                      legend: { orientation: 'v', x: 1.05, y: 0.95, font: { size: 13, color: '#000000' }, bgcolor: '#ffffff', bordercolor: '#000000', borderwidth: 2 },
                       margin: { l: 30, r: 120, t: 30, b: 30 },
                     }}
                   />
@@ -372,8 +385,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     className="w-full h-full"
                     data={geoChartData}
                     layout={{
-                      xaxis: { title: { text: 'Mentions', font: { size: 14 } }, gridcolor: 'rgba(255,255,255,0.08)' },
-                      yaxis: { title: { text: 'Region', standoff: 35, font: { size: 14 } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13 } },
+                      xaxis: { title: { text: 'Mentions', font: { size: 14, color: '#000000' } }, gridcolor: '#e5e7eb', tickfont: { color: '#000000' } },
+                      yaxis: { title: { text: 'Region', standoff: 35, font: { size: 14, color: '#000000' } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13, color: '#000000' } },
                       margin: { l: 160, r: 30, t: 40, b: 60 },
                     }}
                   />
@@ -386,8 +399,8 @@ export const DemographicsView: React.FC<DemographicsViewProps> = ({
                     className="w-full h-full"
                     data={interestChartData}
                     layout={{
-                      xaxis: { title: { text: 'Posts', font: { size: 14 } }, gridcolor: 'rgba(255,255,255,0.08)' },
-                      yaxis: { title: { text: 'Category', standoff: 35, font: { size: 14 } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13 } },
+                      xaxis: { title: { text: 'Posts', font: { size: 14, color: '#000000' } }, gridcolor: '#e5e7eb', tickfont: { color: '#000000' } },
+                      yaxis: { title: { text: 'Category', standoff: 35, font: { size: 14, color: '#000000' } }, automargin: true, categoryorder: 'total ascending', tickfont: { size: 13, color: '#000000' } },
                       margin: { l: 170, r: 30, t: 40, b: 60 },
                     }}
                   />

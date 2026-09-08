@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { PlotlyChart } from './PlotlyChart';
 import type { NetworkData } from '../types';
-import { Maximize2, Minimize2, X } from 'lucide-react';
+import { Maximize2, Minimize2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface NetworkViewProps {
   network?: NetworkData;
@@ -11,6 +11,9 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
   network = { nodes: [], edges: [], kols: [], node_count: 0, edge_count: 0, kol_count: 0 },
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pageSize, setPageSize] = useState<number | 'all'>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   const nodes = network?.nodes || [];
   const edges = network?.edges || [];
   const kolsList = useMemo(() => {
@@ -46,6 +49,15 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
       .sort((a, b) => (b.eigenvector_centrality || 0) - (a.eigenvector_centrality || 0))
       .slice(0, 15);
   }, [network?.kols, nodes]);
+
+  const totalKols = kolsList.length;
+  const effectivePageSize = pageSize === 'all' ? (totalKols || 1) : pageSize;
+  const totalPages = Math.ceil(totalKols / effectivePageSize) || 1;
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const startIndex = (safeCurrentPage - 1) * effectivePageSize;
+  const endIndex = pageSize === 'all' ? totalKols : Math.min(startIndex + effectivePageSize, totalKols);
+  const paginatedKols = kolsList.slice(startIndex, endIndex);
 
   // Compute 2D Spring / Force layout for Plotly
   const plotData = useMemo(() => {
@@ -131,7 +143,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
       x: edgeX,
       y: edgeY,
       mode: 'lines' as const,
-      line: { width: 0.8, color: 'rgba(113, 113, 122, 0.4)' },
+      line: { width: 1.2, color: 'rgba(0, 0, 0, 0.45)' },
       hoverinfo: 'none' as const,
       showlegend: false,
       type: 'scatter' as const,
@@ -154,7 +166,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
       mode: 'markers+text' as const,
       text: nodeText,
       textposition: 'top center' as const,
-      textfont: { size: 9, color: '#e4e4e7' },
+      textfont: { size: 10, color: '#000000', family: 'system-ui, sans-serif' },
       hoverinfo: 'text' as const,
       hovertext: hoverText,
       marker: {
@@ -163,14 +175,14 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
         colorscale: 'Viridis',
         showscale: true,
         colorbar: {
-          title: { text: 'Community', font: { size: 10, color: '#a1a1aa' } },
-          tickfont: { size: 9, color: '#a1a1aa' },
+          title: { text: 'Community', font: { size: 11, color: '#000000' } },
+          tickfont: { size: 10, color: '#000000' },
           thickness: 12,
           len: 0.7,
         },
         line: {
-          width: displayNodes.map((d) => (d.is_kol ? 2 : 1)),
-          color: displayNodes.map((d) => (d.is_kol ? '#ffffff' : 'rgba(255,255,255,0.2)')),
+          width: displayNodes.map((d) => (d.is_kol ? 2.5 : 1.5)),
+          color: '#000000',
         },
       },
       showlegend: false,
@@ -181,47 +193,47 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
   }, [nodes, edges]);
 
   return (
-    <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+    <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo space-y-6">
+      <div className="flex items-center justify-between border-b-2 border-black pb-4">
         <div>
-          <h3 className="text-base font-bold text-white">Network & Influence Analysis</h3>
-          <p className="text-xs text-neutral-400">Centrality ranking, community clustering, and interaction graphs</p>
+          <h3 className="text-base font-black text-black uppercase tracking-wide">Network & Influence Analysis</h3>
+          <p className="text-xs font-semibold text-neutral-600">Centrality ranking, community clustering, and interaction graphs</p>
         </div>
         <button
           onClick={() => setIsFullscreen(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800/80 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+          className="neo-btn flex items-center gap-1.5 rounded-lg bg-black px-3.5 py-1.5 text-xs font-black text-white hover:bg-neutral-800"
         >
-          <Maximize2 className="h-3.5 w-3.5" /> Fullscreen Graph
+          <Maximize2 className="h-3.5 w-3.5 stroke-[2.5]" /> Fullscreen Graph
         </button>
       </div>
 
       {/* 3 Metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-          <span className="text-xs font-semibold text-neutral-400">Network Nodes</span>
-          <div className="text-2xl font-bold text-white mt-1">{network?.node_count || nodes.length}</div>
+        <div className="rounded-lg border-2 border-black bg-neutral-100 p-4 shadow-neo-sm">
+          <span className="text-xs font-black uppercase text-neutral-600">Network Nodes</span>
+          <div className="text-2xl font-black text-black mt-1">{network?.node_count || nodes.length}</div>
         </div>
 
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-          <span className="text-xs font-semibold text-neutral-400">Connections</span>
-          <div className="text-2xl font-bold text-white mt-1">{network?.edge_count || edges.length}</div>
+        <div className="rounded-lg border-2 border-black bg-neutral-50 p-4 shadow-neo-sm">
+          <span className="text-xs font-black uppercase text-neutral-600">Connections</span>
+          <div className="text-2xl font-black text-black mt-1">{network?.edge_count || edges.length}</div>
         </div>
 
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-          <span className="text-xs font-semibold text-neutral-400">Key Opinion Leaders</span>
-          <div className="text-2xl font-bold text-white mt-1">{network?.kol_count || kolsList.length}</div>
+        <div className="rounded-lg border-2 border-black bg-neutral-200 p-4 shadow-neo-sm">
+          <span className="text-xs font-black uppercase text-neutral-600">Key Opinion Leaders</span>
+          <div className="text-2xl font-black text-black mt-1">{network?.kol_count || kolsList.length}</div>
         </div>
       </div>
 
       {/* Key Opinion Leaders Table */}
       <div className="space-y-2">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+        <h4 className="text-xs font-black uppercase tracking-wider text-black">
           Key Opinion Leaders
         </h4>
 
-        <div className="overflow-x-auto rounded-xl border border-neutral-800">
-          <table className="w-full text-left text-xs text-neutral-300">
-            <thead className="border-b border-neutral-800 bg-neutral-950/80 text-[11px] font-semibold text-neutral-400">
+        <div className="overflow-x-auto rounded-lg border-2 border-black bg-white shadow-neo-sm">
+          <table className="w-full text-left text-xs text-black">
+            <thead className="border-b-2 border-black bg-neutral-100 text-[11px] font-black uppercase text-black">
               <tr>
                 <th className="p-3">Handle</th>
                 <th className="p-3">Degree</th>
@@ -230,40 +242,100 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
                 <th className="p-3">Community</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-800/60 bg-neutral-900/30 font-mono text-[11px]">
-              {kolsList.map((kol, idx) => (
-                <tr key={idx} className="hover:bg-neutral-800/40">
-                  <td className="p-3 font-semibold text-indigo-300 font-sans">@{kol.handle}</td>
-                  <td className="p-3 text-neutral-300">{(kol.degree_centrality || 0).toFixed(4)}</td>
-                  <td className="p-3 text-neutral-300">{(kol.betweenness_centrality || 0).toFixed(4)}</td>
-                  <td className="p-3 text-emerald-400 font-bold">{(kol.eigenvector_centrality || 0).toFixed(4)}</td>
-                  <td className="p-3 text-neutral-400">#{kol.community_id || 0}</td>
-                </tr>
-              ))}
+            <tbody className="divide-y-2 divide-black font-mono text-[11px]">
+              {paginatedKols.map((kol, idx) => {
+                const cleanHandle = (kol.handle || '').replace(/^@+/, '');
+                return (
+                  <tr key={idx} className="hover:bg-neutral-100">
+                    <td className="p-3 font-black text-black font-sans">@{cleanHandle}</td>
+                    <td className="p-3 font-bold text-black">{(kol.degree_centrality || 0).toFixed(4)}</td>
+                    <td className="p-3 font-bold text-black">{(kol.betweenness_centrality || 0).toFixed(4)}</td>
+                    <td className="p-3 font-black text-black">{(kol.eigenvector_centrality || 0).toFixed(4)}</td>
+                    <td className="p-3 font-bold text-neutral-600">#{kol.community_id || 0}</td>
+                  </tr>
+                );
+              })}
 
               {kolsList.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-xs text-neutral-500 font-sans">
+                  <td colSpan={5} className="py-6 text-center text-xs font-bold text-neutral-500 font-sans">
                     No KOLs identified yet (need more interaction data)
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+
+          {/* Bottom Choose Section & Pagination Controls */}
+          {totalKols > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t-2 border-black bg-neutral-50 p-3">
+              {/* Left: Row range status */}
+              <div className="text-xs font-black text-black">
+                Showing <span className="underline">{startIndex + 1}–{endIndex}</span> of <span className="font-black">{totalKols}</span> Key Opinion Leaders
+              </div>
+
+              {/* Middle: Rows per page chooser */}
+              <div className="flex items-center gap-1.5 text-xs font-black text-black">
+                <span className="uppercase text-[11px] text-neutral-600">Show:</span>
+                {[5, 10, 20, 50, 'all'].map((size) => {
+                  const isSelected = pageSize === size;
+                  return (
+                    <button
+                      key={size}
+                      onClick={() => {
+                        setPageSize(size as any);
+                        setCurrentPage(1);
+                      }}
+                      className={`rounded-md border-2 border-black px-2.5 py-1 text-[11px] font-black transition-all ${
+                        isSelected
+                          ? 'bg-black text-white shadow-neo-sm translate-x-[1px] translate-y-[1px]'
+                          : 'bg-white text-black hover:bg-neutral-100 shadow-neo-sm'
+                      }`}
+                    >
+                      {size === 'all' ? 'All' : size}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right: Page Navigation buttons */}
+              {pageSize !== 'all' && totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage === 1}
+                    className="neo-btn flex items-center gap-1 rounded-md bg-white px-2.5 py-1 text-xs font-black text-black hover:bg-neutral-100 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 stroke-[2.5]" /> Prev
+                  </button>
+                  <span className="text-xs font-black text-black">
+                    {safeCurrentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage === totalPages}
+                    className="neo-btn flex items-center gap-1 rounded-md bg-white px-2.5 py-1 text-xs font-black text-black hover:bg-neutral-100 disabled:opacity-40"
+                  >
+                    Next <ChevronRight className="h-3.5 w-3.5 stroke-[2.5]" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Network Graph Visualizer */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+          <h4 className="text-xs font-black uppercase tracking-wider text-black">
             Interactive Network Graph
           </h4>
-          <span className="text-[11px] text-neutral-400">
+          <span className="text-[11px] font-semibold text-neutral-600">
             Scroll to zoom • Drag to pan • Hover for details • Toolbar top-right
           </span>
         </div>
-        <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/60 p-2">
+        <div className="overflow-hidden rounded-lg border-2 border-black bg-white p-2 shadow-neo-sm">
           {plotData.length > 0 ? (
             <PlotlyChart
               className="w-full h-[520px]"
@@ -277,7 +349,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
               }}
             />
           ) : (
-            <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+            <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
               No network nodes available
             </div>
           )}
@@ -286,25 +358,25 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
       {/* Fullscreen Graph Modal */}
       {isFullscreen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
-          <div className="relative flex h-[92vh] w-[95vw] flex-col rounded-2xl border border-neutral-700 bg-neutral-950 p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative flex h-[92vh] w-[95vw] flex-col rounded-lg border-4 border-black bg-white p-6 shadow-neo-xl">
+            <div className="flex items-center justify-between border-b-2 border-black pb-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Interactive Network Graph (Fullscreen)</h2>
-                <p className="text-xs text-neutral-400">
+                <h2 className="text-lg font-black uppercase text-black">Interactive Network Graph (Fullscreen)</h2>
+                <p className="text-xs font-semibold text-neutral-600">
                   Full resolution node-link diagram • Drag to pan, scroll to zoom, hover on nodes for centrality details
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setIsFullscreen(false)}
-                  className="flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-850 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:bg-neutral-700 hover:text-white"
+                  className="neo-btn flex items-center gap-1 rounded-lg bg-black px-3.5 py-1.5 text-xs font-black text-white hover:bg-neutral-800"
                 >
                   <Minimize2 className="h-4 w-4" /> Close Fullscreen
                 </button>
                 <button
                   onClick={() => setIsFullscreen(false)}
-                  className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                  className="rounded-lg p-1 text-black hover:bg-neutral-100"
                 >
                   <X className="h-5 w-5" />
                 </button>

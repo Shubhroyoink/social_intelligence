@@ -33,14 +33,16 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({ narrative }) => {
   const reportText = narrative?.report_markdown || narrative?.report_text;
 
   return (
-    <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-6 backdrop-blur-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-800 pb-4">
+    <div className="rounded-lg border-2 border-black bg-white p-6 shadow-neo">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b-2 border-black pb-4">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-indigo-400" />
+          <h2 className="text-lg font-black text-black flex items-center gap-2 uppercase tracking-wide">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md border-2 border-black bg-black text-white shadow-neo-sm">
+              <Sparkles className="h-4 w-4 fill-white" />
+            </span>
             Executive Summary / AI Narrative
           </h2>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="text-xs font-semibold text-neutral-600 mt-1">
             {narrative ? getCaption() : 'No narrative report generated yet'}
           </p>
         </div>
@@ -48,20 +50,20 @@ export const NarrativeView: React.FC<NarrativeViewProps> = ({ narrative }) => {
         {reportText && (
           <button
             onClick={handleDownload}
-            className="flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-800/80 px-3.5 py-1.5 text-xs font-semibold text-neutral-200 transition-colors hover:bg-neutral-700 hover:text-white"
+            className="neo-btn flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-xs font-black text-white hover:bg-neutral-800"
           >
-            <Download className="h-4 w-4 text-indigo-400" />
+            <Download className="h-4 w-4 stroke-[2.5]" />
             <span>Download Report (.md)</span>
           </button>
         )}
       </div>
 
       {reportText ? (
-        <div className="mt-6 prose prose-invert max-w-none prose-headings:font-bold prose-headings:text-indigo-400 prose-headings:mt-6 prose-headings:mb-2 prose-h3:text-sm prose-h3:uppercase prose-h3:tracking-wider prose-h3:border-b prose-h3:border-neutral-800/80 prose-h3:pb-1.5 prose-p:text-neutral-300 prose-p:text-xs prose-p:leading-relaxed prose-li:text-neutral-300 prose-li:text-xs prose-strong:text-white">
+        <div className="mt-6 prose max-w-none prose-headings:font-black prose-headings:text-black prose-headings:mt-5 prose-headings:mb-2 prose-h3:text-sm prose-h3:uppercase prose-h3:tracking-wider prose-h3:border-b-2 prose-h3:border-black prose-h3:pb-1 prose-p:text-neutral-800 prose-p:text-xs prose-p:leading-relaxed prose-li:text-neutral-800 prose-li:text-xs prose-strong:font-black prose-strong:text-black bg-neutral-50 p-5 rounded-lg border-2 border-black">
           <ReactMarkdown>{reportText}</ReactMarkdown>
         </div>
       ) : (
-        <div className="py-12 text-center text-xs text-neutral-500">
+        <div className="py-10 text-center text-xs font-bold text-neutral-500">
           No narrative reports generated for this topic yet. Click "Run Pipeline" to generate one.
         </div>
       )}

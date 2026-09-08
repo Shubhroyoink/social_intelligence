@@ -31,22 +31,22 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
       type: 'scatter',
       mode: 'lines',
       connectgaps: true,
-      line: { color: '#60a5fa', width: 2.2 },
+      line: { color: '#000000', width: 2.5 },
       name: activeKeyword,
       hovertemplate: '%{x}<br>Frequency: %{y}<extra></extra>',
     },
   ];
 
   return (
-    <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/60 p-5 backdrop-blur-sm space-y-6">
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+    <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo space-y-6">
+      <div className="flex items-center justify-between border-b-2 border-black pb-4">
         <div>
-          <h3 className="text-base font-bold text-white">Trending Terms</h3>
-          <p className="text-xs text-neutral-400">
+          <h3 className="text-base font-black text-black uppercase tracking-wide">Trending Terms</h3>
+          <p className="text-xs font-semibold text-neutral-600">
             TF-IDF keyword burst detection across sliding time windows
           </p>
         </div>
-        <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-medium text-indigo-400">
+        <span className="rounded-md border-2 border-black bg-neutral-100 px-2.5 py-0.5 text-[11px] font-black text-black shadow-neo-sm">
           Interactive Plotly
         </span>
       </div>
@@ -54,49 +54,52 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Left Column: Top terms (latest window) */}
         <div className="space-y-3">
-          <h4 className="text-sm font-bold text-white">
+          <h4 className="text-sm font-black text-black uppercase tracking-wide">
             Top terms (latest window)
           </h4>
 
           <div className="space-y-2 mt-3">
-            {latestTrends.slice(0, 10).map((row, idx) => (
-              <div
-                key={idx}
-                onClick={() => setSelectedKeyword(row.keyword)}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
-                  activeKeyword === row.keyword
-                    ? 'bg-neutral-800 border border-neutral-700 font-semibold text-white'
-                    : 'bg-neutral-950/40 hover:bg-neutral-800/50 text-neutral-300'
-                }`}
-              >
-                <span className="font-bold text-white">
-                  {row.keyword}
-                </span>
-                <span className="text-neutral-400 font-normal">
-                  ({row.frequency || row.count || 0} mentions)
-                </span>
-              </div>
-            ))}
+            {latestTrends.slice(0, 10).map((row, idx) => {
+              const isActive = activeKeyword === row.keyword;
+              return (
+                <div
+                  key={idx}
+                  onClick={() => setSelectedKeyword(row.keyword)}
+                  className={`flex items-center justify-between rounded-lg px-3.5 py-2.5 text-sm cursor-pointer transition-all border-2 border-black ${
+                    isActive
+                      ? 'bg-black font-black text-white shadow-neo-sm translate-x-[1px] translate-y-[1px]'
+                      : 'bg-white hover:bg-neutral-100 font-bold text-black shadow-neo-sm'
+                  }`}
+                >
+                  <span className={`font-black ${isActive ? 'text-white' : 'text-black'}`}>
+                    {row.keyword}
+                  </span>
+                  <span className={`font-bold text-xs ${isActive ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                    ({row.frequency || row.count || 0} mentions)
+                  </span>
+                </div>
+              );
+            })}
 
             {latestTrends.length === 0 && (
-              <p className="text-xs text-neutral-500 py-4">No trend observations recorded</p>
+              <p className="text-xs font-bold text-neutral-500 py-4">No trend observations recorded</p>
             )}
           </div>
         </div>
 
         {/* Right Column: Trend over time with keyword selectbox */}
         <div className="space-y-4">
-          <h4 className="text-sm font-bold text-white">
+          <h4 className="text-sm font-black text-black uppercase tracking-wide">
             Trend over time
           </h4>
 
           {uniqueKeywords.length > 0 && (
             <div className="space-y-1.5">
-              <label className="text-xs text-neutral-300">Select keyword</label>
+              <label className="text-xs font-black uppercase text-neutral-700">Select keyword</label>
               <select
                 value={activeKeyword}
                 onChange={(e) => setSelectedKeyword(e.target.value)}
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm font-semibold text-white focus:border-indigo-500 focus:outline-none"
+                className="w-full rounded-lg border-2 border-black bg-white px-3 py-2 text-sm font-black text-black shadow-neo-sm focus:outline-none cursor-pointer"
               >
                 {uniqueKeywords.map((kw) => (
                   <option key={kw} value={kw}>
@@ -108,12 +111,12 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
           )}
 
           {activeKeyword && (
-            <div className="text-sm font-bold text-white pt-2">
+            <div className="text-base font-black text-black uppercase tracking-wide pt-1">
               {activeKeyword}
             </div>
           )}
 
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-2">
+          <div className="rounded-lg border-2 border-black bg-white p-2 shadow-neo-sm">
             {keywordTimeline.length > 0 ? (
               <PlotlyChart
                 data={trendPlotlyData}
@@ -121,20 +124,20 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
                   height: 280,
                   margin: { l: 50, r: 20, t: 20, b: 50 },
                   xaxis: {
-                    title: { text: 'window_start', font: { size: 12, color: '#a1a1aa' } },
-                    tickfont: { size: 10, color: '#a1a1aa' },
-                    gridcolor: 'rgba(255,255,255,0.05)',
+                    title: { text: 'window_start', font: { size: 12, color: '#000000' } },
+                    tickfont: { size: 10, color: '#000000' },
+                    gridcolor: '#e5e7eb',
                   },
                   yaxis: {
-                    title: { text: 'frequency', font: { size: 12, color: '#a1a1aa' } },
-                    tickfont: { size: 10, color: '#a1a1aa' },
-                    gridcolor: 'rgba(255,255,255,0.08)',
+                    title: { text: 'frequency', font: { size: 12, color: '#000000' } },
+                    tickfont: { size: 10, color: '#000000' },
+                    gridcolor: '#e5e7eb',
                   },
                 }}
                 className="h-72 w-full"
               />
             ) : (
-              <div className="flex h-64 items-center justify-center text-xs text-neutral-500">
+              <div className="flex h-64 items-center justify-center text-xs font-bold text-neutral-500">
                 {activeKeyword ? `No timeline data for "${activeKeyword}"` : 'Select a keyword'}
               </div>
             )}
