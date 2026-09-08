@@ -12,9 +12,11 @@ class TestStorageLocation:
         assert path != os.path.abspath("social.db")
         assert ".test_tmp" in path
 
-    def test_tmp_is_on_d_drive(self, tmp_path):
+    def test_tmp_is_in_project_dir(self, tmp_path):
+        project_drive, _ = os.path.splitdrive(os.path.abspath("."))
         drive, _ = os.path.splitdrive(str(tmp_path))
-        assert drive.lower() == "d:"
+        assert drive.lower() == project_drive.lower()
+        assert ".test_tmp" in str(tmp_path)
 
 
 class TestSchema:
