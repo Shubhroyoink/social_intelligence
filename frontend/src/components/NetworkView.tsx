@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { PlotlyChart } from './PlotlyChart';
 import type { NetworkData } from '../types';
-import { Maximize2, Minimize2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Maximize2, Minimize2, X, ChevronLeft, ChevronRight, Share2, Sparkles } from 'lucide-react';
 
 interface NetworkViewProps {
   network?: NetworkData;
@@ -16,6 +16,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
   const nodes = network?.nodes || [];
   const edges = network?.edges || [];
+
   const kolsList = useMemo(() => {
     const rawKols = network?.kols || [];
     const nodeMap = new Map<string, any>();
@@ -47,12 +48,12 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
     return [...nodes]
       .sort((a, b) => (b.eigenvector_centrality || 0) - (a.eigenvector_centrality || 0))
-      .slice(0, 15);
+      .slice(0, 20);
   }, [network?.kols, nodes]);
 
   const totalKols = kolsList.length;
   const effectivePageSize = pageSize === 'all' ? (totalKols || 1) : pageSize;
-  const totalPages = Math.ceil(totalKols / effectivePageSize) || 1;
+  const totalPages = Math.max(1, Math.ceil(totalKols / effectivePageSize));
   const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
 
   const startIndex = (safeCurrentPage - 1) * effectivePageSize;
@@ -152,10 +153,10 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
     // Build Node Scatter trace
     const nodeX = positions.map((p) => p.x);
     const nodeY = positions.map((p) => p.y);
-    const nodeText = displayNodes.map((d) => (d.is_kol || (d.eigenvector_centrality || 0) > 0.05 ? d.handle : ''));
+    const nodeText = displayNodes.map((d) => (d.is_kol || (d.eigenvector_centrality || 0) > 0.05 ? `@${d.handle.replace(/^@+/, '')}` : ''));
     const hoverText = displayNodes.map(
       (d) =>
-        `<b>@${d.handle}</b><br>Eigenvector: ${(d.eigenvector_centrality || 0).toFixed(4)}<br>Degree: ${(d.degree_centrality || 0).toFixed(4)}<br>Community: #${d.community_id || 0}${d.is_kol ? '<br><b>🌟 Key Opinion Leader</b>' : ''}`
+        `<b>@${d.handle.replace(/^@+/, '')}</b><br>Eigenvector: ${(d.eigenvector_centrality || 0).toFixed(4)}<br>Degree: ${(d.degree_centrality || 0).toFixed(4)}<br>Community: #${d.community_id || 0}${d.is_kol ? '<br><b>🌟 Key Opinion Leader</b>' : ''}`
     );
     const nodeSizes = displayNodes.map((d) => Math.max(10, Math.min(36, 12 + (d.eigenvector_centrality || 0) * 160)));
     const nodeColors = displayNodes.map((d) => d.community_id || 0);
@@ -196,8 +197,15 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
     <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo space-y-6">
       <div className="flex items-center justify-between border-b-2 border-black pb-4">
         <div>
-          <h3 className="text-base font-black text-black uppercase tracking-wide">Network & Influence Analysis</h3>
-          <p className="text-xs font-semibold text-neutral-600">Centrality ranking, community clustering, and interaction graphs</p>
+          <h3 className="text-base font-black text-black flex items-center gap-2 uppercase tracking-wide">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md border-2 border-black bg-black text-white shadow-neo-sm">
+              <Share2 className="h-4 w-4 stroke-[2.5]" />
+            </span>
+            Network & Influence Analysis
+          </h3>
+          <p className="text-xs font-semibold text-neutral-600 mt-1">
+            Centrality ranking, community clustering, and key opinion leader interaction graph
+          </p>
         </div>
         <button
           onClick={() => setIsFullscreen(true)}
@@ -207,7 +215,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
         </button>
       </div>
 
-      {/* 3 Metrics */}
+      {/* 3 Metrics Row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border-2 border-black bg-neutral-100 p-4 shadow-neo-sm">
           <span className="text-xs font-black uppercase text-neutral-600">Network Nodes</span>
@@ -227,7 +235,8 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
       {/* Key Opinion Leaders Table */}
       <div className="space-y-2">
-        <h4 className="text-xs font-black uppercase tracking-wider text-black">
+        <h4 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 fill-black" />
           Key Opinion Leaders
         </h4>
 
@@ -236,7 +245,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
             <thead className="border-b-2 border-black bg-neutral-100 text-[11px] font-black uppercase text-black">
               <tr>
                 <th className="p-3">Handle</th>
-                <th className="p-3">Degree</th>
+                <th className="p-3">Degree Centrality</th>
                 <th className="p-3">Betweenness</th>
                 <th className="p-3">Eigenvector</th>
                 <th className="p-3">Community</th>
@@ -246,11 +255,11 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
               {paginatedKols.map((kol, idx) => {
                 const cleanHandle = (kol.handle || '').replace(/^@+/, '');
                 return (
-                  <tr key={idx} className="hover:bg-neutral-100">
-                    <td className="p-3 font-black text-black font-sans">@{cleanHandle}</td>
-                    <td className="p-3 font-bold text-black">{(kol.degree_centrality || 0).toFixed(4)}</td>
-                    <td className="p-3 font-bold text-black">{(kol.betweenness_centrality || 0).toFixed(4)}</td>
-                    <td className="p-3 font-black text-black">{(kol.eigenvector_centrality || 0).toFixed(4)}</td>
+                  <tr key={idx} className="hover:bg-neutral-100 font-sans">
+                    <td className="p-3 font-black text-black">@{cleanHandle}</td>
+                    <td className="p-3 font-mono font-bold text-black">{(kol.degree_centrality || 0).toFixed(4)}</td>
+                    <td className="p-3 font-mono font-bold text-black">{(kol.betweenness_centrality || 0).toFixed(4)}</td>
+                    <td className="p-3 font-mono font-black text-black">{(kol.eigenvector_centrality || 0).toFixed(4)}</td>
                     <td className="p-3 font-bold text-neutral-600">#{kol.community_id || 0}</td>
                   </tr>
                 );
