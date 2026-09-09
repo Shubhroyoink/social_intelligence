@@ -43,6 +43,7 @@ import {
   Cloud,
   Database,
   Users,
+  LayoutDashboard,
 } from 'lucide-react';
 
 export function App() {
@@ -189,9 +190,9 @@ export function App() {
   }, [selectedTopic, loadData]);
 
   const tabs = [
-    { id: 'all', label: 'Complete Streamlit View', icon: BrainCircuit },
+    { id: 'all', label: 'Comprehensive Overview', icon: LayoutDashboard },
     { id: 'sentiment', label: 'Sentiment Distribution', icon: BarChart3 },
-    { id: 'emotions', label: 'Emotion & Stance', icon: BrainCircuit },
+    { id: 'emotions', label: 'Emotion Analysis', icon: BrainCircuit },
     { id: 'trends', label: 'Trending Terms', icon: TrendingUp },
     { id: 'demographics', label: 'Demographics', icon: Users },
     { id: 'network', label: 'Network & KOLs', icon: Share2 },

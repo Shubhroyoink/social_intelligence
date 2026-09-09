@@ -1,7 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import { PlotlyChart } from './PlotlyChart';
 import type { NetworkData } from '../types';
-import { Maximize2, Minimize2, X, ChevronLeft, ChevronRight, Share2, Sparkles } from 'lucide-react';
+import {
+  Maximize2,
+  Minimize2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Share2,
+  Sparkles,
+  HelpCircle,
+  BookOpen,
+  Info,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 interface NetworkViewProps {
   network?: NetworkData;
@@ -13,6 +26,8 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pageSize, setPageSize] = useState<number | 'all'>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [showGlossary, setShowGlossary] = useState<boolean>(true);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const nodes = network?.nodes || [];
   const edges = network?.edges || [];
@@ -135,8 +150,8 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
       const u = nodeIndex.get(edge.source_handle);
       const v = nodeIndex.get(edge.target_handle);
       if (u !== undefined && v !== undefined && u < n && v < n) {
-        edgeX.push(positions[u].x, positions[v].x, null);
-        edgeY.push(positions[u].y, positions[v].y, null);
+        edgeX.push(positions[u].x, positions[u].x, null);
+        edgeY.push(positions[u].y, positions[u].y, null);
       }
     });
 
@@ -195,6 +210,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
 
   return (
     <div className="rounded-lg border-2 border-black bg-white p-5 shadow-neo space-y-6">
+      {/* Top Header */}
       <div className="flex items-center justify-between border-b-2 border-black pb-4">
         <div>
           <h3 className="text-base font-black text-black flex items-center gap-2 uppercase tracking-wide">
@@ -204,7 +220,7 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
             Network & Influence Analysis
           </h3>
           <p className="text-xs font-semibold text-neutral-600 mt-1">
-            Centrality ranking, community clustering, and key opinion leader interaction graph
+            Social graph structure, key opinion leaders (KOLs), and interaction communities
           </p>
         </div>
         <button
@@ -215,40 +231,168 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
         </button>
       </div>
 
-      {/* 3 Metrics Row */}
+      {/* 3 Metrics Row with Explanations */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border-2 border-black bg-neutral-100 p-4 shadow-neo-sm">
-          <span className="text-xs font-black uppercase text-neutral-600">Network Nodes</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase text-neutral-700">Network Nodes</span>
+            <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white uppercase">Accounts</span>
+          </div>
           <div className="text-2xl font-black text-black mt-1">{network?.node_count || nodes.length}</div>
+          <p className="text-[11px] font-semibold text-neutral-600 mt-1">Unique accounts & channels participating in conversations</p>
         </div>
 
         <div className="rounded-lg border-2 border-black bg-neutral-50 p-4 shadow-neo-sm">
-          <span className="text-xs font-black uppercase text-neutral-600">Connections</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase text-neutral-700">Connections</span>
+            <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white uppercase">Edges</span>
+          </div>
           <div className="text-2xl font-black text-black mt-1">{network?.edge_count || edges.length}</div>
+          <p className="text-[11px] font-semibold text-neutral-600 mt-1">Direct @mentions, retweets, and conversational interactions</p>
         </div>
 
         <div className="rounded-lg border-2 border-black bg-neutral-200 p-4 shadow-neo-sm">
-          <span className="text-xs font-black uppercase text-neutral-600">Key Opinion Leaders</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase text-neutral-700">Key Opinion Leaders</span>
+            <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white uppercase">KOLs</span>
+          </div>
           <div className="text-2xl font-black text-black mt-1">{network?.kol_count || kolsList.length}</div>
+          <p className="text-[11px] font-semibold text-neutral-600 mt-1">High-impact accounts ranked by graph centrality algorithms</p>
         </div>
+      </div>
+
+      {/* Collapsible Network Terminology & Reviewer Glossary Card */}
+      <div className="rounded-lg border-2 border-black bg-neutral-50 shadow-neo-sm overflow-hidden">
+        <button
+          onClick={() => setShowGlossary((prev) => !prev)}
+          className="w-full flex items-center justify-between p-3.5 bg-neutral-100 hover:bg-neutral-200 transition-colors border-b-2 border-black/80 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-black text-white">
+              <BookOpen className="h-3 w-3" />
+            </span>
+            <span className="text-xs font-black uppercase tracking-wider text-black">
+              Network Metrics & Centrality Guide (What Do These Scores Mean?)
+            </span>
+            <span className="rounded border border-black bg-white px-2 py-0.5 text-[9px] font-black uppercase text-black">
+              Reviewer Reference
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs font-black text-black">
+            <span>{showGlossary ? 'Hide Guide' : 'Show Guide'}</span>
+            {showGlossary ? <ChevronUp className="h-4 w-4 stroke-[2.5]" /> : <ChevronDown className="h-4 w-4 stroke-[2.5]" />}
+          </div>
+        </button>
+
+        {showGlossary && (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-white">
+            {/* Degree Centrality */}
+            <div className="rounded-md border-2 border-black bg-neutral-50 p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-black">Degree Centrality</span>
+                <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white">Direct Reach</span>
+              </div>
+              <p className="text-[11px] font-semibold text-neutral-700 leading-relaxed">
+                <strong>What it is:</strong> Counts the number of direct mentions and replies an account receives or sends.
+              </p>
+              <p className="text-[10px] font-bold text-black border-t border-neutral-200 pt-1">
+                ➔ High score = High direct interaction volume.
+              </p>
+            </div>
+
+            {/* Betweenness Centrality */}
+            <div className="rounded-md border-2 border-black bg-neutral-50 p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-black">Betweenness</span>
+                <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white">Bridge Score</span>
+              </div>
+              <p className="text-[11px] font-semibold text-neutral-700 leading-relaxed">
+                <strong>What it is:</strong> Measures how often a user sits on the shortest path between other people in the network.
+              </p>
+              <p className="text-[10px] font-bold text-black border-t border-neutral-200 pt-1">
+                ➔ High score = Information broker connecting separate groups.
+              </p>
+            </div>
+
+            {/* Eigenvector Centrality */}
+            <div className="rounded-md border-2 border-black bg-neutral-50 p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-black">Eigenvector</span>
+                <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white">Authority Rank</span>
+              </div>
+              <p className="text-[11px] font-semibold text-neutral-700 leading-relaxed">
+                <strong>What it is:</strong> Google PageRank-style score: accounts connected to other highly influential users score higher.
+              </p>
+              <p className="text-[10px] font-bold text-black border-t border-neutral-200 pt-1">
+                ➔ High score = Highest true prestige and network authority.
+              </p>
+            </div>
+
+            {/* Community ID */}
+            <div className="rounded-md border-2 border-black bg-neutral-50 p-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-black">Community ID</span>
+                <span className="rounded bg-black px-1.5 py-0.5 text-[9px] font-black text-white">Topic Cluster</span>
+              </div>
+              <p className="text-[11px] font-semibold text-neutral-700 leading-relaxed">
+                <strong>What it is:</strong> Louvain modularity algorithm that clusters accounts who talk with each other into sub-groups.
+              </p>
+              <p className="text-[10px] font-bold text-black border-t border-neutral-200 pt-1">
+                ➔ Same # = Same topic circle / sub-community.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Key Opinion Leaders Table */}
       <div className="space-y-2">
-        <h4 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 fill-black" />
-          Key Opinion Leaders
-        </h4>
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 fill-black" />
+            Key Opinion Leaders Ranking Table
+          </h4>
+          <span className="text-[11px] font-bold text-neutral-600">
+            Sorted by Eigenvector (Network Authority)
+          </span>
+        </div>
 
         <div className="overflow-x-auto rounded-lg border-2 border-black bg-white shadow-neo-sm">
           <table className="w-full text-left text-xs text-black">
             <thead className="border-b-2 border-black bg-neutral-100 text-[11px] font-black uppercase text-black">
               <tr>
-                <th className="p-3">Handle</th>
-                <th className="p-3">Degree Centrality</th>
-                <th className="p-3">Betweenness</th>
-                <th className="p-3">Eigenvector</th>
-                <th className="p-3">Community</th>
+                <th className="p-3">
+                  <div>Handle</div>
+                  <div className="text-[9px] font-bold text-neutral-500 normal-case">Account / Channel</div>
+                </th>
+                <th className="p-3">
+                  <div className="flex items-center gap-1">
+                    <span>Degree Centrality</span>
+                    <span title="Direct Reach: fraction of direct connections & mentions" className="cursor-help text-neutral-600">ⓘ</span>
+                  </div>
+                  <div className="text-[9px] font-bold text-neutral-500 normal-case">Direct Activity & Mentions</div>
+                </th>
+                <th className="p-3">
+                  <div className="flex items-center gap-1">
+                    <span>Betweenness</span>
+                    <span title="Bridge Score: gatekeeper score connecting different groups" className="cursor-help text-neutral-600">ⓘ</span>
+                  </div>
+                  <div className="text-[9px] font-bold text-neutral-500 normal-case">Community Bridge Score</div>
+                </th>
+                <th className="p-3">
+                  <div className="flex items-center gap-1">
+                    <span>Eigenvector</span>
+                    <span title="Authority Score: influence weighted by connections to other influential nodes" className="cursor-help text-neutral-600">ⓘ</span>
+                  </div>
+                  <div className="text-[9px] font-bold text-neutral-500 normal-case">True Network Authority</div>
+                </th>
+                <th className="p-3">
+                  <div className="flex items-center gap-1">
+                    <span>Community</span>
+                    <span title="Discussion Cluster: Louvain algorithm community group" className="cursor-help text-neutral-600">ⓘ</span>
+                  </div>
+                  <div className="text-[9px] font-bold text-neutral-500 normal-case">Sub-Group Cluster #</div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y-2 divide-black font-mono text-[11px]">
@@ -256,11 +400,22 @@ export const NetworkView: React.FC<NetworkViewProps> = ({
                 const cleanHandle = (kol.handle || '').replace(/^@+/, '');
                 return (
                   <tr key={idx} className="hover:bg-neutral-100 font-sans">
-                    <td className="p-3 font-black text-black">@{cleanHandle}</td>
+                    <td className="p-3 font-black text-black">
+                      <div className="flex items-center gap-1.5">
+                        <span>@{cleanHandle}</span>
+                        {idx === 0 && safeCurrentPage === 1 && (
+                          <span className="rounded bg-black px-1.5 py-0.2 text-[9px] font-black text-white uppercase">#1 Lead</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3 font-mono font-bold text-black">{(kol.degree_centrality || 0).toFixed(4)}</td>
                     <td className="p-3 font-mono font-bold text-black">{(kol.betweenness_centrality || 0).toFixed(4)}</td>
                     <td className="p-3 font-mono font-black text-black">{(kol.eigenvector_centrality || 0).toFixed(4)}</td>
-                    <td className="p-3 font-bold text-neutral-600">#{kol.community_id || 0}</td>
+                    <td className="p-3 font-bold text-neutral-700">
+                      <span className="rounded border border-black bg-neutral-100 px-1.5 py-0.5 text-[10px] font-black">
+                        Group #{kol.community_id || 0}
+                      </span>
+                    </td>
                   </tr>
                 );
               })}
