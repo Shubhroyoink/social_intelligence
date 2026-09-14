@@ -22,44 +22,51 @@ export const Header: React.FC<HeaderProps> = ({
   pipelineStatus,
 }) => {
   return (
-    <header className="sticky top-0 z-40 border-b border-neutral-800/80 bg-neutral-950/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 border-b-[3px] border-black bg-white shadow-[0_4px_0px_0px_#000000]">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
         {/* Brand & Topic Switcher */}
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/20">
-              <Sparkles className="h-5 w-5 text-white" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-black bg-black text-white shadow-neo-sm">
+              <Sparkles className="h-5 w-5 fill-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold tracking-tight text-white sm:text-base">
-                  Social Intelligence
-                </h1>
-                <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-400 border border-indigo-500/20">
-                  AI OSINT
-                </span>
-              </div>
-              <p className="hidden text-[11px] text-neutral-400 sm:block">
+              <h1 className="text-xl font-black tracking-tight text-black sm:text-2xl uppercase leading-none">
+                Social Intelligence
+              </h1>
+              <p className="hidden text-[11px] font-bold text-neutral-600 sm:block mt-0.5">
                 Multi-platform analytics & transformer intelligence
               </p>
             </div>
           </div>
 
-          {/* Topic Dropdown */}
-          <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-neutral-400" />
-            <select
-              value={selectedTopic}
-              onChange={(e) => onSelectTopic(e.target.value)}
-              className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-neutral-200 shadow-inner focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="All">All Topics ({topics.length})</option>
-              {topics.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+          {/* Topic Dropdown with Executive Pill Styling */}
+          <div className="flex items-center">
+            <div className="flex items-center rounded-lg border-2 border-black bg-neutral-100 p-1 shadow-neo-sm">
+              <div className="flex items-center gap-1.5 px-2 text-[11px] font-black text-black uppercase tracking-wider">
+                <Layers className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span className="hidden md:inline text-neutral-600">Topic:</span>
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedTopic}
+                  onChange={(e) => onSelectTopic(e.target.value)}
+                  className="appearance-none rounded-md border-2 border-black bg-white py-1 pl-2.5 pr-7 text-xs font-black text-black shadow-neo-sm hover:bg-neutral-50 focus:bg-white focus:outline-none cursor-pointer transition-all"
+                >
+                  <option value="All">All Topics ({topics.length})</option>
+                  {topics.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-black">
+                  <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 20 20">
+                    <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -67,16 +74,16 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3">
           {/* Status Indicator */}
           {pipelineStatus.is_running ? (
-            <div className="flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-400">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500"></span>
+            <div className="flex items-center gap-2 rounded-lg border-2 border-black bg-black px-3 py-1 text-xs font-black text-white shadow-neo-sm">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white"></span>
               </span>
               <span className="truncate max-w-[140px] sm:max-w-none">{pipelineStatus.status_message}</span>
             </div>
           ) : (
-            <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900/60 px-3 py-1 text-[11px] text-neutral-400">
-              <Activity className="h-3 w-3 text-emerald-500" />
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border-2 border-black bg-neutral-100 px-3 py-1 text-xs font-black text-black shadow-neo-sm">
+              <Activity className="h-3.5 w-3.5 text-black stroke-[2.5]" />
               <span>Pipeline Idle</span>
             </div>
           )}
@@ -85,16 +92,16 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white disabled:opacity-50"
+            className="neo-btn flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-1.5 text-xs font-bold text-black hover:bg-neutral-100 disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-indigo-400" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-black" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
 
           {/* Run Pipeline Button */}
           <button
             onClick={onOpenPipelineModal}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition-all hover:bg-indigo-500 hover:shadow-indigo-500/30"
+            className="neo-btn flex items-center gap-1.5 rounded-lg bg-black px-4 py-1.5 text-xs font-black text-white hover:bg-neutral-800"
           >
             <Play className="h-3.5 w-3.5 fill-current" />
             <span>Run Pipeline</span>

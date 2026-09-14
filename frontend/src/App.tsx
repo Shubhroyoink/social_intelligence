@@ -43,6 +43,7 @@ import {
   Cloud,
   Database,
   Users,
+  LayoutDashboard,
 } from 'lucide-react';
 
 export function App() {
@@ -51,11 +52,6 @@ export function App() {
   const [activeTab, setActiveTab] = useState<
     'all' | 'sentiment' | 'trends' | 'emotions' | 'demographics' | 'network' | 'narrative' | 'wordcloud' | 'posts'
   >('all');
-
-  // Filter states for posts
-  const [filterPlatform, setFilterPlatform] = useState('All');
-  const [filterSentiment, setFilterSentiment] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Data states
   const [stats, setStats] = useState<OverviewStats | null>(null);
@@ -141,7 +137,7 @@ export function App() {
         fetchNetwork(topic),
         fetchNarratives(topic),
         fetchWordCloud(topic),
-        fetchPosts(topic, filterPlatform, filterSentiment, 100, searchQuery),
+        fetchPosts(topic, undefined, undefined, 500),
         fetchPipelineStatus(),
       ]);
 
@@ -161,7 +157,7 @@ export function App() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [filterPlatform, filterSentiment, searchQuery]);
+  }, []);
 
   useEffect(() => {
     loadData(selectedTopic);
@@ -170,19 +166,33 @@ export function App() {
   // Periodic poll while pipeline runs
   useEffect(() => {
     const interval = setInterval(async () => {
-      const status = await fetchPipelineStatus();
-      setPipelineStatus(status);
-      if (status.is_running) {
-        loadData(selectedTopic);
+      try {
+        const status = await fetchPipelineStatus();
+        setPipelineStatus((prev) => {
+          if (
+            prev.is_running === status.is_running &&
+            prev.status_message === status.status_message &&
+            prev.last_run === status.last_run &&
+            prev.error === status.error
+          ) {
+            return prev;
+          }
+          return status;
+        });
+        if (status.is_running) {
+          loadData(selectedTopic);
+        }
+      } catch (e) {
+        // silent fail for background poll
       }
     }, 3000);
     return () => clearInterval(interval);
   }, [selectedTopic, loadData]);
 
   const tabs = [
-    { id: 'all', label: 'Complete Streamlit View', icon: BrainCircuit },
+    { id: 'all', label: 'Comprehensive Overview', icon: LayoutDashboard },
     { id: 'sentiment', label: 'Sentiment Distribution', icon: BarChart3 },
-    { id: 'emotions', label: 'Emotion & Stance', icon: BrainCircuit },
+    { id: 'emotions', label: 'Emotion Analysis', icon: BrainCircuit },
     { id: 'trends', label: 'Trending Terms', icon: TrendingUp },
     { id: 'demographics', label: 'Demographics', icon: Users },
     { id: 'network', label: 'Network & KOLs', icon: Share2 },
@@ -192,7 +202,7 @@ export function App() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-neutral-950 pb-16">
+    <div className="min-h-screen pb-20">
       {/* Top Header */}
       <Header
         topics={topics}
@@ -215,8 +225,8 @@ export function App() {
         <OverviewCards stats={stats} />
 
         {/* View Mode Navigation Tabs */}
-        <div className="flex overflow-x-auto border-b border-neutral-800/80 pb-px scrollbar-none">
-          <div className="flex gap-2">
+        <div className="flex overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex gap-2.5 p-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -224,13 +234,13 @@ export function App() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-xs font-semibold transition-all ${
+                  className={`neo-btn flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2.5 text-xs font-black transition-all ${
                     isActive
-                      ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10 rounded-t-lg'
-                      : 'border-transparent text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                      ? 'bg-black text-white shadow-neo-sm translate-x-[1px] translate-y-[1px]'
+                      : 'bg-white text-black hover:bg-neutral-100 shadow-neo-sm'
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-4 w-4 stroke-[2.5]" />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -251,12 +261,8 @@ export function App() {
                 timeline={sentimentsData.timeline}
               />
 
-              <hr className="border-neutral-800" />
-
               {/* 2. Trending Terms & Trend over time line chart */}
               <TrendsView trendsData={trendsData} />
-
-              <hr className="border-neutral-800" />
 
               {/* 3. Emotion Analysis, Timeline & Stance */}
               <EmotionView
@@ -266,32 +272,17 @@ export function App() {
                 timeline={emotionsData.timeline}
               />
 
-              <hr className="border-neutral-800" />
-
               {/* 4. Demographics (Language, Geography, Interests) */}
               <DemographicsView demographics={demographics} />
-
-              <hr className="border-neutral-800" />
 
               {/* 5. Network & Influence Analysis + KOL Table + Graph */}
               <NetworkView network={network} />
 
-              <hr className="border-neutral-800" />
-
               {/* 6. Word Cloud */}
               <WordCloudView words={wordCloudWords} />
 
-              <hr className="border-neutral-800" />
-
               {/* 7. View Sample Posts */}
-              <PostsExplorer
-                posts={posts}
-                onSearch={setSearchQuery}
-                onFilterPlatform={setFilterPlatform}
-                onFilterSentiment={setFilterSentiment}
-                selectedPlatform={filterPlatform}
-                selectedSentiment={filterSentiment}
-              />
+              <PostsExplorer posts={posts} />
             </>
           )}
 
@@ -338,14 +329,7 @@ export function App() {
           )}
 
           {activeTab === 'posts' && (
-            <PostsExplorer
-              posts={posts}
-              onSearch={setSearchQuery}
-              onFilterPlatform={setFilterPlatform}
-              onFilterSentiment={setFilterSentiment}
-              selectedPlatform={filterPlatform}
-              selectedSentiment={filterSentiment}
-            />
+            <PostsExplorer posts={posts} />
           )}
         </div>
       </main>
