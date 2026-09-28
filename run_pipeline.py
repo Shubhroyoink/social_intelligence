@@ -75,17 +75,29 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
         yt_budget_units=2000, yt_refresh=False,
         do_collect=True, do_analyze=True, window_size_hours=24,
         skip_emotions=False, skip_demographics=False, skip_network=False,
-        skip_narrative=False):
+        skip_narrative=False, progress_callback=None):
+    
+    def _notify(step, pct, msg):
+        if progress_callback and callable(progress_callback):
+            try:
+                progress_callback(step, pct, msg)
+            except Exception:
+                pass
+
+    _notify("Initializing", 5, f"Initializing pipeline for topic '{topic_query}'")
     create_database()
 
     if do_collect:
+        _notify("Collecting Data", 15, f"Collecting posts for '{topic_query}' from active sources...")
         raw = collect_data(topic_query, telegram_channels, x_queries, telegram_limit, x_limit)
 
         if youtube_urls:
+            _notify("Collecting YouTube", 25, f"Fetching comments from {len(youtube_urls)} YouTube video(s)...")
             yt_raw = collect_youtube_data(topic_query, youtube_urls, youtube_limit)
             raw.extend(yt_raw)
 
         if youtube_search:
+            _notify("Discovering YouTube", 30, f"Discovering YouTube videos for '{topic_query}'...")
             print(f"[YouTube] Discovering up to {yt_max_videos} videos for "
                   f"topic '{topic_query}' (budget cap {yt_budget_units} units)...")
             try:
@@ -101,6 +113,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             except RuntimeError as e:
                 print(f"  [WARN] YouTube topic search skipped: {e}")
 
+        _notify("Normalizing Data", 40, f"Normalizing and deduplicating {len(raw)} gathered posts...")
         from normalizer.normalizer import normalize_posts, dedupe
         normalized = normalize_posts(raw)
         normalized = dedupe(normalized, key="id")
@@ -111,11 +124,13 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
 
         posts = normalized
     else:
+        _notify("Loading Data", 35, f"Loading existing posts for topic '{topic_query}' from database...")
         from database.db import get_posts
         posts = get_posts(topic_query=topic_query)
         print(f"Loaded {len(posts)} existing posts from DB")
 
     if not do_analyze:
+        _notify("Completed", 100, "Collection completed. Analysis skipped.")
         print("Analysis skipped. Done.")
         return posts
 
@@ -125,12 +140,14 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
     network = None
 
     if posts:
+        _notify("Sentiment Analysis", 50, f"Analyzing sentiment for {len(posts)} posts with RoBERTa...")
         print("Running sentiment analysis...")
         from analytics.sentiment import analyze_posts
         sentiments = analyze_posts(posts)
         save_sentiments(sentiments)
         print(f"  Analyzed sentiment for {len(sentiments)} posts")
 
+    _notify("Detecting Trends", 65, "Extracting trending keywords and TF-IDF keyphrases...")
     print("Detecting trends...")
     from analytics.trends import detect_trends, rising_terms
     trends = detect_trends(posts, topic_query, window_size_hours=window_size_hours)
@@ -144,6 +161,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
         print(f"   {kw}: {freq}")
 
     if not skip_emotions and posts:
+        _notify("Emotion Analysis", 75, f"Classifying emotions & sarcasm for {len(posts)} posts...")
         print("\nRunning emotion analysis...")
         from analytics.emotions import analyze_emotions
         emotions = analyze_emotions(posts)
@@ -152,6 +170,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             print(f"  Analyzed emotions for {len(emotions)} posts")
 
     if not skip_demographics and posts:
+        _notify("Demographics Profiling", 82, "Inferring language, location hints, and interests...")
         print("\nRunning demographic profiling...")
         from analytics.demographics import analyze_demographics
         demographics = analyze_demographics(posts)
@@ -160,6 +179,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             print(f"  Profiled demographics for {len(demographics)} posts")
 
     if not skip_network and posts:
+        _notify("Network Graphing", 88, "Building interaction graph and identifying KOLs...")
         print("\nBuilding network graph...")
         from analytics.network import analyze_network
         network = analyze_network(posts, topic_query, sentiments)
@@ -170,6 +190,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             print(f"  Identified {len(network['kols'])} key opinion leaders")
 
     if not skip_narrative and posts:
+        _notify("Narrative Generation", 94, "Synthesizing executive AI narrative report...")
         print("\nGenerating narrative report...")
         from analytics.narrative import generate_narrative, write_report_file
         narrative = generate_narrative(
@@ -189,6 +210,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
         else:
             print("  No posts to narrate; skipped")
 
+    _notify("Completed", 100, f"Successfully processed pipeline for '{topic_query}'.")
     print("\nPipeline complete.")
     return posts
 

@@ -79,12 +79,24 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white"></span>
               </span>
-              <span className="truncate max-w-[140px] sm:max-w-none">{pipelineStatus.status_message}</span>
+              <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono font-bold">
+                {pipelineStatus.percent ?? 0}%
+              </span>
+              <span className="truncate max-w-[140px] sm:max-w-none">{pipelineStatus.current_step || pipelineStatus.status_message}</span>
             </div>
           ) : (
-            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border-2 border-black bg-neutral-100 px-3 py-1 text-xs font-black text-black shadow-neo-sm">
+            <div className="hidden sm:flex items-center gap-2 rounded-lg border-2 border-black bg-neutral-100 px-3 py-1 text-xs font-black text-black shadow-neo-sm">
               <Activity className="h-3.5 w-3.5 text-black stroke-[2.5]" />
               <span>Pipeline Idle</span>
+              {pipelineStatus.redis_active ? (
+                <span className="rounded border border-black bg-neutral-200 px-1.5 py-0.2 text-[9px] font-black uppercase text-neutral-800">
+                  Redis
+                </span>
+              ) : (
+                <span className="rounded border border-black bg-neutral-200 px-1.5 py-0.2 text-[9px] font-black uppercase text-neutral-800">
+                  Async
+                </span>
+              )}
             </div>
           )}
 
