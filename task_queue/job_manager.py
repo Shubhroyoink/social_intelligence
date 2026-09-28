@@ -42,27 +42,43 @@ class JobManager:
     def _init_redis(self, host: str, port: int, db: int, password: Optional[str]):
         try:
             import redis
-            client = redis.Redis(
-                host=host,
-                port=port,
-                db=db,
-                password=password,
-                decode_responses=True,
-                socket_connect_timeout=1.0,
-                socket_timeout=1.0,
-            )
-            # Test ping with short timeout
-            if client.ping():
-                self._redis_client = client
-                self._redis_available = True
-                logger.info(f"Connected to Redis at {host}:{port}/{db}")
-        except Exception as e:
+            # Try 127.0.0.1 first, then localhost
+            for target_host in [host, "127.0.0.1", "localhost"]:
+                try:
+                    client = redis.Redis(
+                        host=target_host,
+                        port=port,
+                        db=db,
+                        password=password,
+                        decode_responses=True,
+                        socket_connect_timeout=2.0,
+                        socket_timeout=2.0,
+                    )
+                    if client.ping():
+                        self._redis_client = client
+                        self._redis_available = True
+                        print(f"[JobManager] Successfully connected to Redis at {target_host}:{port}/{db}")
+                        return
+                except Exception:
+                    continue
             self._redis_client = None
             self._redis_available = False
-            logger.info(f"Redis not available ({e}). Using in-memory fallback queue.")
+            print("[JobManager] Redis server not reachable on 127.0.0.1:6379. Using in-memory fallback queue.")
+        except ImportError:
+            self._redis_client = None
+            self._redis_available = False
+            print("[JobManager] Python 'redis' library not installed (run 'pip install redis'). Using in-memory fallback queue.")
 
     @property
     def is_redis_active(self) -> bool:
+        if self._redis_available and self._redis_client:
+            try:
+                if self._redis_client.ping():
+                    return True
+            except Exception:
+                self._redis_available = False
+        # Try reconnecting
+        self._init_redis(REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD)
         return self._redis_available
 
     def create_job(self, topic: str, config: Optional[Dict[str, Any]] = None) -> str:

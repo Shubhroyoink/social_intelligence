@@ -137,43 +137,46 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
     sentiments = []
     emotions = []
     demographics = []
+    trends = []
     network = None
 
     if posts:
-        _notify("Sentiment Analysis", 50, f"Analyzing sentiment for {len(posts)} posts with RoBERTa...")
-        print("Running sentiment analysis...")
+        _notify("Parallel Analytics", 60, f"Running parallel Sentiment, Emotion, Demographic & Trend analysis on {len(posts)} posts...")
+        print(f"\n[Parallel Analytics] Processing {len(posts)} posts across models...")
+        from concurrent.futures import ThreadPoolExecutor
         from analytics.sentiment import analyze_posts
-        sentiments = analyze_posts(posts)
-        save_sentiments(sentiments)
-        print(f"  Analyzed sentiment for {len(sentiments)} posts")
-
-    _notify("Detecting Trends", 65, "Extracting trending keywords and TF-IDF keyphrases...")
-    print("Detecting trends...")
-    from analytics.trends import detect_trends, rising_terms
-    trends = detect_trends(posts, topic_query, window_size_hours=window_size_hours)
-    if trends:
-        save_trends(trends)
-    print(f"  Saved {len(trends)} trend observations")
-
-    hot = rising_terms(posts, window_size_hours=window_size_hours)
-    print("\nCurrently rising terms:")
-    for kw, freq in hot[:10]:
-        print(f"   {kw}: {freq}")
-
-    if not skip_emotions and posts:
-        _notify("Emotion Analysis", 75, f"Classifying emotions & sarcasm for {len(posts)} posts...")
-        print("\nRunning emotion analysis...")
+        from analytics.trends import detect_trends, rising_terms
         from analytics.emotions import analyze_emotions
-        emotions = analyze_emotions(posts)
+        from analytics.demographics import analyze_demographics
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            fut_sent = executor.submit(analyze_posts, posts)
+            fut_trend = executor.submit(detect_trends, posts, topic_query, window_size_hours=window_size_hours)
+            fut_emot = executor.submit(analyze_emotions, posts) if not skip_emotions else None
+            fut_demo = executor.submit(analyze_demographics, posts) if not skip_demographics else None
+
+            sentiments = fut_sent.result() if fut_sent else []
+            trends = fut_trend.result() if fut_trend else []
+            emotions = fut_emot.result() if fut_emot else []
+            demographics = fut_demo.result() if fut_demo else []
+
+        if sentiments:
+            save_sentiments(sentiments)
+            print(f"  Analyzed sentiment for {len(sentiments)} posts")
+
+        if trends:
+            save_trends(trends)
+            print(f"  Saved {len(trends)} trend observations")
+
+        hot = rising_terms(posts, window_size_hours=window_size_hours)
+        print("\nCurrently rising terms:")
+        for kw, freq in hot[:10]:
+            print(f"   {kw}: {freq}")
+
         if emotions:
             save_emotions(emotions)
             print(f"  Analyzed emotions for {len(emotions)} posts")
 
-    if not skip_demographics and posts:
-        _notify("Demographics Profiling", 82, "Inferring language, location hints, and interests...")
-        print("\nRunning demographic profiling...")
-        from analytics.demographics import analyze_demographics
-        demographics = analyze_demographics(posts)
         if demographics:
             save_demographics(demographics)
             print(f"  Profiled demographics for {len(demographics)} posts")
