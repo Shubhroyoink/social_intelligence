@@ -67,36 +67,6 @@ def _get_redis_client():
     return None
 
 
-from dotenv import load_dotenv
-
-from normalizer.normalizer import normalize_timestamp, stable_post_id
-
-load_dotenv()
-
-API_BASE = "https://api.socialfetch.dev"
-ENV_KEY_NAME = "SOCIALFETCH_API_KEY"
-
-REQUEST_COST = 1  # flat cost of any single successful Twitter request
-
-# search caps `limit` at 20; profile-tweets caps it at 100.
-PROFILE_DISCOVERY_LIMIT = 20
-TWEETS_PAGE_LIMIT = 100
-
-# Prototype defaults: 1 discovery + 3 profiles = 4 credits, ~300 tweets.
-FREE_SIGNUP_CREDITS = 100
-DEFAULT_MAX_PROFILES = 3
-DEFAULT_MAX_PAGES = 1
-DEFAULT_BUDGET_CREDITS = 4
-DEFAULT_INCLUDE_REPLIES = True
-
-REQUEST_TIMEOUT = 30
-MAX_RETRIES = 3
-RETRY_BACKOFF_SECONDS = 1
-
-LEDGER_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "x_credits.json")
-)
-
 
 class XCreditsExceededError(Exception):
     """Raised when the run's credit budget, or the account balance, is gone."""
@@ -217,35 +187,6 @@ def _get(path, params, api_key):
         f"(last status {last_status}); not charged."
     )
 
-            if code == "insufficient_credits":
-                raise XCreditsExceededError(
-                    "Social Fetch credits exhausted (402 insufficient_credits). "
-                    "Top up at https://app.socialfetch.dev or lower "
-                    "--x-max-profiles."
-                )
-            raise XCreditsExceededError(
-                "Social Fetch returned 402 with code "
-                f"{code!r}. This is an x402 payment challenge, not an empty "
-                "balance -- pay the challenge or supply an x-api-key."
-            )
-
-        if resp.status_code in (502, 503):
-            # Not charged, so retry without spending.
-            last_status = resp.status_code
-            _backoff(attempt)
-            continue
-
-        resp.raise_for_status()
-        payload = resp.json()
-
-        charged = (payload.get("meta") or {}).get("creditsCharged")
-        spend_credits(REQUEST_COST if charged is None else charged)
-        return payload
-
-    raise RuntimeError(
-        f"Social Fetch {path} failed after {MAX_RETRIES} attempts "
-        f"(last status {last_status}); not charged."
-    )
 
 
 def fetch_credit_balance(api_key=None):

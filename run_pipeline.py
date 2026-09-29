@@ -179,11 +179,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
 
         posts = normalized
     else:
-<<<<<<< HEAD
         _notify("Loading Data", 35, f"Loading existing posts for topic '{topic_query}' from database...")
-        from database.db import get_posts
-=======
->>>>>>> a400d83d929902c5ff89b65d6dae3c134da879a5
         posts = get_posts(topic_query=topic_query)
         print(f"Loaded {len(posts)} existing posts from DB")
 
@@ -239,11 +235,6 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             save_demographics(demographics)
             print(f"  Profiled demographics for {len(demographics)} posts")
 
-<<<<<<< HEAD
-    if not skip_network and posts:
-        _notify("Network Graphing", 88, "Building interaction graph and identifying KOLs...")
-        print("\nBuilding network graph...")
-=======
     # Always load the full topic corpus for topic-global analyses (network & narrative)
     corpus_posts = get_posts(topic_query=topic_query) or posts
     corpus_sentiments = get_sentiments(topic_query=topic_query) or sentiments
@@ -256,10 +247,10 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
     corpus_trends = get_trends(topic_query=topic_query) or trends
 
     if not skip_network and (corpus_posts or posts):
+        _notify("Network Graphing", 88, "Building interaction graph and identifying KOLs...")
         target_posts = corpus_posts or posts
         target_sentiments = corpus_sentiments or sentiments
         print(f"\nBuilding network graph across full corpus ({len(target_posts)} posts)...")
->>>>>>> a400d83d929902c5ff89b65d6dae3c134da879a5
         from analytics.network import analyze_network
         network = analyze_network(target_posts, topic_query, target_sentiments)
         if network["nodes"]:
@@ -268,18 +259,13 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             print(f"  Mapped {len(network['nodes'])} nodes, {len(network['edges'])} edges")
             print(f"  Identified {len(network['kols'])} key opinion leaders")
 
-<<<<<<< HEAD
-    if not skip_narrative and posts:
-        _notify("Narrative Generation", 94, "Synthesizing executive AI narrative report...")
-        print("\nGenerating narrative report...")
-=======
     if network is None and (corpus_network["nodes"] or corpus_network["edges"]):
         network = corpus_network
 
     if not skip_narrative and (corpus_posts or posts):
+        _notify("Narrative Generation", 94, "Synthesizing executive AI narrative report...")
         target_posts = corpus_posts or posts
         print(f"\nGenerating narrative report across full corpus ({len(target_posts)} posts)...")
->>>>>>> a400d83d929902c5ff89b65d6dae3c134da879a5
         from analytics.narrative import generate_narrative, write_report_file
         narrative = generate_narrative(
             target_posts,
