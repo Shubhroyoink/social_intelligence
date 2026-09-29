@@ -12,13 +12,15 @@ from database.db import (
 
 
 def collect_data(topic_query, telegram_channels=None, x_queries=None,
-                 telegram_limit=100, x_limit=20):
+                 telegram_limit=100, x_limit=20, notify_fn=None):
     from collectors.telegram_collector import collect_telegram
     from collectors.x_collector import collect_x_search
 
     all_posts = []
 
     if telegram_channels:
+        if notify_fn:
+            notify_fn("Collecting Telegram", 12, f"Collecting from {len(telegram_channels)} Telegram channels...")
         print(f"[Telegram] Collecting from {len(telegram_channels)} channels...")
         try:
             tg_posts = collect_telegram(telegram_channels, topic_query, limit_per_channel=telegram_limit)
@@ -27,9 +29,13 @@ def collect_data(topic_query, telegram_channels=None, x_queries=None,
         except Exception as e:
             print(f"  [WARN] Telegram collection failed: {e}")
 
-    if x_queries:
-        print(f"[X] Collecting for {len(x_queries)} queries...")
-        for query in x_queries:
+    # If no explicit x_queries specified, default to searching the topic itself
+    effective_x_queries = x_queries if x_queries is not None else [topic_query]
+    if effective_x_queries:
+        if notify_fn:
+            notify_fn("Collecting Twitter/X", 20, f"Collecting tweets for {len(effective_x_queries)} queries via SocialFetch / Twitter API...")
+        print(f"[X] Collecting for {len(effective_x_queries)} queries...")
+        for query in effective_x_queries:
             try:
                 x_posts = collect_x_search(query, topic_query, limit=x_limit)
                 all_posts.extend(x_posts)
@@ -88,8 +94,11 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
     create_database()
 
     if do_collect:
-        _notify("Collecting Data", 15, f"Collecting posts for '{topic_query}' from active sources...")
-        raw = collect_data(topic_query, telegram_channels, x_queries, telegram_limit, x_limit)
+        raw = collect_data(
+            topic_query, telegram_channels, x_queries,
+            telegram_limit=telegram_limit, x_limit=x_limit,
+            notify_fn=_notify
+        )
 
         if youtube_urls:
             _notify("Collecting YouTube", 25, f"Fetching comments from {len(youtube_urls)} YouTube video(s)...")

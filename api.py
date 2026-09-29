@@ -44,7 +44,7 @@ job_manager = get_job_manager()
 class PipelineRunRequest(BaseModel):
     topic: str = "AI Agents"
     channels: Optional[List[str]] = ["@aipost", "@KDnuggets", "@theaiexecutive"]
-    x_queries: Optional[List[str]] = ["AI Agents"]
+    x_queries: Optional[List[str]] = None
     youtube_urls: Optional[List[str]] = None
     youtube_search: bool = True
     yt_max_videos: int = 5
@@ -400,7 +400,7 @@ def trigger_pipeline_run(req: PipelineRunRequest):
     pipeline_kwargs = {
         "topic_query": req.topic,
         "telegram_channels": req.channels,
-        "x_queries": req.x_queries,
+        "x_queries": req.x_queries if req.x_queries is not None else [req.topic],
         "youtube_urls": req.youtube_urls,
         "telegram_limit": req.telegram_limit,
         "x_limit": req.x_limit,
