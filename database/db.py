@@ -166,6 +166,27 @@ def create_database():
         ON youtube_videos (topic_query)
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS x_profiles (
+            handle TEXT NOT NULL,
+            topic_query TEXT NOT NULL,
+            display_name TEXT,
+            platform_user_id TEXT,
+            followers INTEGER,
+            tweets_count INTEGER,
+            lookup_status TEXT,
+            first_seen_at TEXT NOT NULL,
+            last_fetched_at TEXT,
+            tweets_collected INTEGER DEFAULT 0,
+            PRIMARY KEY (handle, topic_query)
+        )
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_x_profiles_topic
+        ON x_profiles (topic_query)
+    """)
+
     conn.commit()
     conn.close()
 
@@ -560,6 +581,94 @@ def get_fetched_youtube_video_ids(topic_query):
     """, (topic_query,)).fetchall()
     conn.close()
     return [r["video_id"] for r in rows]
+
+
+def upsert_x_profile(profile, topic_query, lookup_status="found",
+                     last_fetched_at=None, tweets_collected=None):
+    """Record an X profile discovered for a topic (search cache / incremental dedup).
+
+    Bookkeeping only: the tweets themselves land in the `posts` table and are
+    what the analytics stages read. This table exists so re-runs skip handles
+    whose timeline has already been pulled -- including private/not_found
+    handles that return zero tweets but still bill a credit, which would
+    otherwise be re-paid on every single run.
+
+    First-seen metadata is preserved across updates; only discovery fields are
+    refreshed. `profile` is the collector's normalized dict
+    (`handle`, `display_name`, `platformUserId`, `metrics`), so this module
+    stays free of API-specific field names.
+
+    Any row written here represents a paid, completed lookup, so
+    `last_fetched_at` defaults to now. Leaving it null would hide the handle
+    from `get_fetched_x_handles` and silently re-bill it forever.
+    """
+    conn = sqlite3.connect(DB_PATH)
+
+    metrics = profile.get("metrics") or {}
+    conn.execute("""
+        INSERT INTO x_profiles (
+            handle, topic_query, display_name, platform_user_id,
+            followers, tweets_count, lookup_status,
+            first_seen_at, last_fetched_at, tweets_collected
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(handle, topic_query) DO UPDATE SET
+            display_name = excluded.display_name,
+            platform_user_id = excluded.platform_user_id,
+            followers = excluded.followers,
+            tweets_count = excluded.tweets_count,
+            lookup_status = excluded.lookup_status,
+            last_fetched_at = CASE
+                WHEN excluded.last_fetched_at IS NOT NULL
+                THEN excluded.last_fetched_at
+                ELSE x_profiles.last_fetched_at
+            END,
+            tweets_collected = CASE
+                WHEN excluded.tweets_collected IS NOT NULL
+                THEN excluded.tweets_collected
+                ELSE x_profiles.tweets_collected
+            END
+    """, (
+        profile.get("handle"), topic_query, profile.get("display_name"),
+        profile.get("platformUserId"), metrics.get("followers"),
+        metrics.get("tweets"), lookup_status,
+        datetime.now(timezone.utc).isoformat(),
+        last_fetched_at or datetime.now(timezone.utc).isoformat(),
+        tweets_collected
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_fetched_x_handles(topic_query):
+    """Handles for a topic whose timeline has already been pulled at least once."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT handle FROM x_profiles
+        WHERE topic_query = ? AND last_fetched_at IS NOT NULL
+    """, (topic_query,)).fetchall()
+    conn.close()
+    return [r["handle"] for r in rows]
+
+
+def get_x_profiles(topic_query=None):
+    """Recorded X profile lookups, newest discovery first."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if topic_query is None:
+        rows = conn.execute("""
+            SELECT * FROM x_profiles ORDER BY first_seen_at DESC
+        """).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT * FROM x_profiles
+            WHERE topic_query = ?
+            ORDER BY first_seen_at DESC
+        """, (topic_query,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def get_narratives(topic_query=None, limit=None):

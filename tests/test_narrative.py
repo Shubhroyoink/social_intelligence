@@ -123,8 +123,35 @@ class TestBuildReportData:
                                               "negative": 0.0}
         assert data["network"]["kol_handles"] == []
 
+    def test_corpus_keywords_extracted_and_filtered(self):
+        posts = [
+            {"id": f"p_{i}", "platform": "telegram", "author_handle": "@spammer",
+             "text": "Check out https://spam.com/news about machine learning agents",
+             "created_at": "2026-08-01T10:00:00+00:00", "topic_query": "AI Agents"}
+            for i in range(55)
+        ] + [
+            {"id": "p_normal", "platform": "x", "author_handle": "@researcher",
+             "text": "Innovative autonomous systems in production",
+             "created_at": "2026-08-01T11:00:00+00:00", "topic_query": "AI Agents"}
+        ]
+        data = narrative.build_report_data(posts, topic_query="AI Agents")
+        assert "corpus_keywords" in data["trends"]
+        assert isinstance(data["trends"]["corpus_keywords"], list)
+        kw_names = [k["keyword"] for k in data["trends"]["corpus_keywords"]]
+        assert "spammer" not in kw_names
+        assert "https" not in kw_names
+        assert "spam com" not in kw_names
+
 
 class TestTemplateReport:
+    def test_trends_section_shows_both_corpus_and_window(self, sample_posts):
+        data = narrative.build_report_data(
+            sample_posts, trends=_trends(), topic_query="AI Agents"
+        )
+        section = narrative._trends_section(data)
+        assert "Top keywords this window:" in section
+        if data["trends"]["corpus_keywords"]:
+            assert "Top keywords across entire corpus:" in section
     def test_contains_all_section_headings(self, sample_posts):
         data = narrative.build_report_data(
             sample_posts, sentiments=_sentiments(), emotions=_emotions(),

@@ -13,6 +13,12 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 ENV_API_KEY = "LLM_API_KEY"
 ENV_MODEL = "LLM_MODEL"
 
+# Module constant so tests can redirect report output to .test_tmp; a path
+# computed inline from __file__ at call time is not monkeypatchable.
+REPORTS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports"
+)
+
 REPORT_SECTIONS = [
     "Executive Summary",
     "Sentiment",
@@ -91,6 +97,31 @@ def build_report_data(posts, sentiments=None, emotions=None, demographics=None,
             for t in latest_rows[:10]
         ]
 
+    corpus_keywords = []
+    try:
+        from analytics.trends import extract_keywords
+        noise_words = {
+            "https", "http", "com", "www", "org", "net", "io", "html", "amp",
+            "tme", "youtu", "youtube", "twitter"
+        }
+        handle_counts = Counter(
+            (p.get("author_handle") or "").lstrip("@").lower()
+            for p in posts
+            if p.get("author_handle")
+        )
+        frequent_handles = {h for h, count in handle_counts.items() if count >= 50 and h}
+
+        extracted = extract_keywords(posts, top_n=40)
+        for kw, score in extracted:
+            parts = kw.lower().split()
+            if any(p in noise_words or p in frequent_handles or p.startswith("http") for p in parts):
+                continue
+            corpus_keywords.append({"keyword": kw, "score": round(score, 3)})
+            if len(corpus_keywords) >= 15:
+                break
+    except Exception:
+        corpus_keywords = []
+
     rising = []
     try:
         from analytics.trends import rising_terms
@@ -121,6 +152,7 @@ def build_report_data(posts, sentiments=None, emotions=None, demographics=None,
         },
         "trends": {
             "top_keywords": top_keywords,
+            "corpus_keywords": corpus_keywords,
             "rising": rising,
         },
         "demographics": {
@@ -188,8 +220,17 @@ def _exec_summary(data):
     dominant = max(rates, key=lambda k: rates[k]) if any(rates.values()) else "neutral"
     emotions = data["emotions"]["counts"]
     top_emotion = max(emotions, key=emotions.get) if emotions else "neutral"
-    kws = data["trends"]["top_keywords"]
+    kws = data["trends"].get("top_keywords") or []
+    corpus_kws = data["trends"].get("corpus_keywords") or []
     top_kw = kws[0]["keyword"] if kws else "n/a"
+    top_corpus_kw = corpus_kws[0]["keyword"] if corpus_kws else None
+
+    if top_corpus_kw and top_kw != "n/a" and top_corpus_kw != top_kw:
+        kw_phrase = f"The leading topic keyword across the corpus is **{top_corpus_kw}** (latest window: **{top_kw}**)."
+    elif top_corpus_kw:
+        kw_phrase = f"The leading topic keyword is **{top_corpus_kw}**."
+    else:
+        kw_phrase = f"The top keyword this window is **{top_kw}**."
 
     lines = [
         f"This report covers **{data['total_posts']} posts** across "
@@ -199,7 +240,7 @@ def _exec_summary(data):
         f"Overall sentiment skews **{dominant}** "
         f"(positive {rates['positive']}% / neutral {rates['neutral']}% / "
         f"negative {rates['negative']}%), with **{top_emotion}** as the leading emotion. "
-        f"The top keyword this window is **{top_kw}**.",
+        f"{kw_phrase}",
     ]
     kols = data["network"]["kol_handles"]
     if kols:
@@ -248,14 +289,24 @@ def _emotion_section(data):
 
 
 def _trends_section(data):
-    kws = data["trends"]["top_keywords"]
-    rising = data["trends"]["rising"]
+    kws = data["trends"].get("top_keywords") or []
+    corpus_kws = data["trends"].get("corpus_keywords") or []
+    rising = data["trends"].get("rising") or []
     lines = []
+    if corpus_kws:
+        lines.append("Top keywords across entire corpus:")
+        lines.extend(
+            f"- **{k['keyword']}** (score: {k['score']})" if "score" in k else f"- **{k['keyword']}**"
+            for k in corpus_kws[:10]
+        )
     if kws:
+        if lines:
+            lines.append("")
         lines.append("Top keywords this window:")
         lines.extend(f"- **{k['keyword']}**: {k['frequency']} mentions" for k in kws)
     if rising:
-        lines.append("")
+        if lines:
+            lines.append("")
         lines.append(f"Currently rising terms: {', '.join(rising)}.")
     if not lines:
         lines.append("No trend data available.")
@@ -376,9 +427,7 @@ def generate_narrative(posts, sentiments=None, emotions=None, demographics=None,
 def write_report_file(topic_query, markdown, created_at=None, output_dir=None):
     """Persist the report as a timestamped markdown file. Returns the path."""
     if output_dir is None:
-        output_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports"
-        )
+        output_dir = REPORTS_DIR
     os.makedirs(output_dir, exist_ok=True)
 
     slug = re.sub(r"[^a-z0-9]+", "-", (topic_query or "report").lower()).strip("-") or "report"

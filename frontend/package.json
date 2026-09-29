@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rollup/rollup-linux-x64-gnu": "^4.63.1",
     "@types/plotly.js-dist-min": "^2.3.4",
     "lucide-react": "^1.16.0",
     "plotly.js-dist-min": "^4.0.0",

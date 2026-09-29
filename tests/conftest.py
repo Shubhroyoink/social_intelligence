@@ -11,7 +11,10 @@ import dotenv
 
 import database.db as db_module
 
-SECRET_ENV_KEYS = ("YOUTUBE_API_KEY", "TG_API_ID", "TG_API_HASH", "LLM_API_KEY")
+SECRET_ENV_KEYS = (
+    "YOUTUBE_API_KEY", "TG_API_ID", "TG_API_HASH", "LLM_API_KEY",
+    "SOCIALFETCH_API_KEY",
+)
 
 
 def pytest_configure(config):
@@ -47,13 +50,31 @@ def test_db(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _ledger_isolated(tmp_path, monkeypatch):
-    """Route the YouTube quota ledger to .test_tmp so tests never touch
-    (or write) the real youtube_quota.json in the repo root."""
-    from collectors import youtube_collector
+    """Route the collector ledgers to .test_tmp so tests never touch (or write)
+    the real youtube_quota.json / x_credits.json in the repo root."""
+    from collectors import x_collector, youtube_collector
 
     monkeypatch.setattr(
         youtube_collector, "LEDGER_PATH", str(tmp_path / "youtube_quota.json")
     )
+    monkeypatch.setattr(
+        x_collector, "LEDGER_PATH", str(tmp_path / "x_credits.json")
+    )
+
+
+@pytest.fixture(autouse=True)
+def _reports_isolated(tmp_path, monkeypatch):
+    """Redirect generated narrative reports out of the real reports/ dir.
+
+    write_report_file() runs a module-level constant, so any test that drives
+    the narrative stage would otherwise litter the repo with .md files.
+    """
+    from analytics import narrative
+
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    monkeypatch.setattr(narrative, "REPORTS_DIR", str(reports_dir))
+    return str(reports_dir)
 
 
 @pytest.fixture

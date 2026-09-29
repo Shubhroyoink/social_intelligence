@@ -7,14 +7,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database.db import (
     create_database, save_posts, save_sentiments, save_trends,
     save_emotions, save_demographics, save_network_nodes, save_network_edges,
-    save_narrative,
+    save_narrative, get_posts, get_sentiments, get_emotions,
+    get_demographics, get_trends, get_network_nodes, get_network_edges,
 )
 
 
 def collect_data(topic_query, telegram_channels=None, x_queries=None,
-                 telegram_limit=100, x_limit=20):
+                 telegram_limit=100, x_max_profiles=3, x_max_pages=1,
+                 x_budget_credits=4, x_tweets_per_page=100,
+                 x_include_replies=True, x_refresh=False, x_dry_run=False,
+                 x_require_topic=True, x_allow_promo=False):
     from collectors.telegram_collector import collect_telegram
-    from collectors.x_collector import collect_x_search
+    from collectors.x_collector import (
+        XCreditsExceededError, collect_x_for_topic, plan_credit_cost,
+    )
 
     all_posts = []
 
@@ -28,12 +34,41 @@ def collect_data(topic_query, telegram_channels=None, x_queries=None,
             print(f"  [WARN] Telegram collection failed: {e}")
 
     if x_queries:
-        print(f"[X] Collecting for {len(x_queries)} queries...")
+        # Each query is a profile discovery (1 credit); the budget covers the
+        # whole run, so it is checked once here rather than per query.
+        planned = plan_credit_cost(
+            x_max_profiles, x_max_pages, discovery_queries=len(x_queries)
+        )
+        print(f"[X] {len(x_queries)} discovery quer(y/ies) x (1 credit + "
+              f"{x_max_profiles} profile(s) x {x_max_pages} page(s)) "
+              f"= {planned} credit(s)")
+
+        # 0 is a real budget (block everything), so only None disables the cap.
+        if x_budget_credits is not None and planned > x_budget_credits:
+            print(f"  [WARN] Plan of {planned} credits exceeds the budget of "
+                  f"{x_budget_credits}; skipping X collection.")
+            x_queries = []
+
         for query in x_queries:
             try:
-                x_posts = collect_x_search(query, topic_query, limit=x_limit)
+                x_posts = collect_x_for_topic(
+                    topic_query,
+                    query=query,
+                    max_profiles=x_max_profiles,
+                    max_pages=x_max_pages,
+                    budget_credits=None,  # already checked for the whole run
+                    tweets_per_page=x_tweets_per_page,
+                    include_replies=x_include_replies,
+                    refresh=x_refresh,
+                    dry_run=x_dry_run,
+                    require_topic=x_require_topic,
+                    allow_promo=x_allow_promo,
+                )
                 all_posts.extend(x_posts)
                 print(f"  -> '{query}': {len(x_posts)} tweets")
+            except XCreditsExceededError as e:
+                print(f"  [WARN] X collection stopped: {e}")
+                break
             except Exception as e:
                 print(f"  [WARN] X query '{query}' failed: {e}")
 
@@ -70,7 +105,10 @@ def collect_youtube_topic_data(topic_query, max_videos=5, comments_per_video=100
 
 
 def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
-        youtube_urls=None, telegram_limit=100, x_limit=20, youtube_limit=100,
+        youtube_urls=None, telegram_limit=100, youtube_limit=100,
+        x_max_profiles=3, x_max_pages=1, x_budget_credits=4,
+        x_tweets_per_page=100,         x_include_replies=True, x_refresh=False,
+        x_dry_run=False, x_require_topic=True, x_allow_promo=False,
         youtube_search=True, yt_max_videos=5, yt_comments=100,
         yt_budget_units=2000, yt_refresh=False,
         do_collect=True, do_analyze=True, window_size_hours=24,
@@ -79,7 +117,12 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
     create_database()
 
     if do_collect:
-        raw = collect_data(topic_query, telegram_channels, x_queries, telegram_limit, x_limit)
+        raw = collect_data(
+            topic_query, telegram_channels, x_queries, telegram_limit,
+            x_max_profiles, x_max_pages, x_budget_credits, x_tweets_per_page,
+            x_include_replies, x_refresh, x_dry_run, x_require_topic,
+            x_allow_promo,
+        )
 
         if youtube_urls:
             yt_raw = collect_youtube_data(topic_query, youtube_urls, youtube_limit)
@@ -111,7 +154,6 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
 
         posts = normalized
     else:
-        from database.db import get_posts
         posts = get_posts(topic_query=topic_query)
         print(f"Loaded {len(posts)} existing posts from DB")
 
@@ -159,22 +201,43 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             save_demographics(demographics)
             print(f"  Profiled demographics for {len(demographics)} posts")
 
-    if not skip_network and posts:
-        print("\nBuilding network graph...")
+    # Always load the full topic corpus for topic-global analyses (network & narrative)
+    corpus_posts = get_posts(topic_query=topic_query) or posts
+    corpus_sentiments = get_sentiments(topic_query=topic_query) or sentiments
+    corpus_emotions = get_emotions(topic_query=topic_query) or emotions
+    corpus_demographics = get_demographics(topic_query=topic_query) or demographics
+    corpus_network = {
+        "nodes": get_network_nodes(topic_query=topic_query),
+        "edges": get_network_edges(topic_query=topic_query),
+    }
+    corpus_trends = get_trends(topic_query=topic_query) or trends
+
+    if not skip_network and (corpus_posts or posts):
+        target_posts = corpus_posts or posts
+        target_sentiments = corpus_sentiments or sentiments
+        print(f"\nBuilding network graph across full corpus ({len(target_posts)} posts)...")
         from analytics.network import analyze_network
-        network = analyze_network(posts, topic_query, sentiments)
+        network = analyze_network(target_posts, topic_query, target_sentiments)
         if network["nodes"]:
             save_network_nodes(network["nodes"])
             save_network_edges(network["edges"])
             print(f"  Mapped {len(network['nodes'])} nodes, {len(network['edges'])} edges")
             print(f"  Identified {len(network['kols'])} key opinion leaders")
 
-    if not skip_narrative and posts:
-        print("\nGenerating narrative report...")
+    if network is None and (corpus_network["nodes"] or corpus_network["edges"]):
+        network = corpus_network
+
+    if not skip_narrative and (corpus_posts or posts):
+        target_posts = corpus_posts or posts
+        print(f"\nGenerating narrative report across full corpus ({len(target_posts)} posts)...")
         from analytics.narrative import generate_narrative, write_report_file
         narrative = generate_narrative(
-            posts, sentiments=sentiments, emotions=emotions,
-            demographics=demographics, trends=trends, network=network,
+            target_posts,
+            sentiments=corpus_sentiments or sentiments,
+            emotions=corpus_emotions or emotions,
+            demographics=corpus_demographics or demographics,
+            trends=corpus_trends or trends,
+            network=network,
             topic_query=topic_query,
         )
         if narrative:
@@ -198,7 +261,30 @@ if __name__ == "__main__":
     parser.add_argument("--topic", default="AI Agents", help="Topic query to search")
     parser.add_argument("--channels", nargs="*", default=["@aipost", "@KDnuggets", "@theaiexecutive"],
                         help="Telegram channels to collect")
-    parser.add_argument("--x-queries", nargs="*", default=["AI Agents"], help="X search queries")
+    parser.add_argument("--x-queries", nargs="*", default=["AI Agents"],
+                        help="X profile discovery queries (1 credit each)")
+    parser.add_argument("--x-max-profiles", type=int, default=3,
+                        help="X profiles to pull tweets from per discovery query")
+    parser.add_argument("--x-max-pages", type=int, default=1,
+                        help="Timeline pages per X profile (1 credit each)")
+    parser.add_argument("--x-budget-credits", type=int, default=4,
+                        help="Per-run cap on Social Fetch credits for X")
+    parser.add_argument("--x-tweets-per-page", type=int, default=100,
+                        help="Max tweets per X timeline page (API max 100)")
+    parser.add_argument("--x-no-include-replies", action="store_true",
+                        help="Skip reply tweets in X collection (they are included by default)")
+    parser.add_argument("--x-refresh", action="store_true",
+                        help="Re-collect X handles already pulled for this topic")
+    parser.add_argument("--x-dry-run", action="store_true",
+                        help="Print the X collection plan and credit cost, spend nothing")
+    parser.add_argument("--x-require-topic", dest="x_require_topic",
+                        action="store_true", default=True,
+                        help="Require a topic term in the profile name/bio (default on)")
+    parser.add_argument("--x-no-require-topic", dest="x_require_topic",
+                        action="store_false",
+                        help="Allow profiles whose name/bio omit the topic terms")
+    parser.add_argument("--x-allow-promo", action="store_true",
+                        help="Keep giveaway/token accounts the filter would reject")
     parser.add_argument("--youtube-urls", nargs="*", default=None,
                         help="YouTube video URLs to scrape comments from")
     parser.add_argument("--no-youtube-search", action="store_true",
@@ -212,7 +298,6 @@ if __name__ == "__main__":
     parser.add_argument("--yt-refresh", action="store_true",
                         help="Re-extract comments for already-cached videos")
     parser.add_argument("--tg-limit", type=int, default=100, help="Max Telegram posts per channel")
-    parser.add_argument("--x-limit", type=int, default=20, help="Max X posts per query")
     parser.add_argument("--yt-limit", type=int, default=100, help="Max YouTube comments per video")
     parser.add_argument("--no-collect", action="store_true", help="Skip collection, use existing DB data")
     parser.add_argument("--no-analyze", action="store_true", help="Skip analysis, collect only")
@@ -230,8 +315,16 @@ if __name__ == "__main__":
         x_queries=args.x_queries,
         youtube_urls=args.youtube_urls,
         telegram_limit=args.tg_limit,
-        x_limit=args.x_limit,
         youtube_limit=args.yt_limit,
+        x_max_profiles=args.x_max_profiles,
+        x_max_pages=args.x_max_pages,
+        x_budget_credits=args.x_budget_credits,
+        x_tweets_per_page=args.x_tweets_per_page,
+        x_include_replies=not args.x_no_include_replies,
+        x_refresh=args.x_refresh,
+        x_dry_run=args.x_dry_run,
+        x_require_topic=args.x_require_topic,
+        x_allow_promo=args.x_allow_promo,
         youtube_search=not args.no_youtube_search,
         yt_max_videos=args.yt_max_videos,
         yt_comments=args.yt_comments,
