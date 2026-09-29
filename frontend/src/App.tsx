@@ -173,7 +173,9 @@ export function App() {
             prev.is_running === status.is_running &&
             prev.status_message === status.status_message &&
             prev.last_run === status.last_run &&
-            prev.error === status.error
+            prev.error === status.error &&
+            prev.percent === status.percent &&
+            prev.current_step === status.current_step
           ) {
             return prev;
           }

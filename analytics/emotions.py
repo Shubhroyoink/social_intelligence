@@ -33,17 +33,28 @@ AGAINST_PATTERNS = [
     r"\bdenounce\b", r"\boppose\b", r"\bunacceptable\b",
 ]
 
+import os
+import torch
+
 _pipe = None
 
 
 def _get_pipeline():
     global _pipe
     if _pipe is None:
-        print("Loading emotion model...")
+        device = 0 if torch.cuda.is_available() else -1
+        if device == -1:
+            try:
+                torch.set_num_threads(max(1, os.cpu_count() or 4))
+            except Exception:
+                pass
+        print(f"Loading emotion model ({'CUDA/GPU' if device == 0 else 'CPU'})...")
         _pipe = pipeline(
             "text-classification",
             model=EMOTION_MODEL,
             top_k=None,
+            device=device,
+            batch_size=64,
         )
     return _pipe
 
@@ -102,36 +113,70 @@ def detect_stance(text, sentiment_label):
     return "neutral"
 
 
-def analyze_emotions(posts, batch_size=32):
+def analyze_emotions(posts, batch_size=64, check_db_cache=True):
     if not posts:
         return []
 
-    pipe = _get_pipeline()
-    texts = [p["text"][:512] for p in posts]
-    analyzed_at = datetime.now(timezone.utc).isoformat()
-    results = []
+    cached_emotions = {}
+    posts_to_analyze = []
 
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
-        batch_posts = posts[i:i + batch_size]
-        raw_results = pipe(batch)
+    if check_db_cache:
+        try:
+            from database.db import get_emotions
+            existing = get_emotions()
+            existing_map = {e["post_id"]: e for e in existing}
+            for p in posts:
+                pid = p["id"]
+                if pid in existing_map:
+                    cached_emotions[pid] = existing_map[pid]
+                else:
+                    posts_to_analyze.append(p)
+        except Exception:
+            posts_to_analyze = posts
+    else:
+        posts_to_analyze = posts
 
-        for post, raw in zip(batch_posts, raw_results):
-            emotion_scores = {}
-            for entry in raw:
-                emotion_scores[entry["label"]] = round(entry["score"], 4)
+    new_results = []
+    if posts_to_analyze:
+        pipe = _get_pipeline()
+        texts = [p["text"][:256] for p in posts_to_analyze]
+        analyzed_at = datetime.now(timezone.utc).isoformat()
 
-            primary = max(emotion_scores, key=emotion_scores.get)
-            sarcasm = detect_sarcasm(post["text"], primary)
-            stance = detect_stance(post["text"], primary)
+        with torch.inference_mode():
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                batch_posts = posts_to_analyze[i:i + batch_size]
+                try:
+                    raw_results = pipe(batch, batch_size=len(batch))
+                except TypeError:
+                    raw_results = pipe(batch)
 
-            results.append({
-                "post_id": post["id"],
-                "primary_emotion": primary,
-                "emotion_json": json.dumps(emotion_scores),
-                "sarcasm_flag": 1 if sarcasm else 0,
-                "stance": stance,
-                "analyzed_at": analyzed_at,
-            })
+                for post, raw in zip(batch_posts, raw_results):
+                    emotion_scores = {}
+                    for entry in raw:
+                        emotion_scores[entry["label"]] = round(entry["score"], 4)
 
-    return results
+                    primary = max(emotion_scores, key=emotion_scores.get)
+                    sarcasm = detect_sarcasm(post["text"], primary)
+                    stance = detect_stance(post["text"], primary)
+
+                    new_results.append({
+                        "post_id": post["id"],
+                        "primary_emotion": primary,
+                        "emotion_json": json.dumps(emotion_scores),
+                        "sarcasm_flag": 1 if sarcasm else 0,
+                        "stance": stance,
+                        "analyzed_at": analyzed_at,
+                    })
+
+    all_results = []
+    for p in posts:
+        pid = p["id"]
+        if pid in cached_emotions:
+            all_results.append(cached_emotions[pid])
+        else:
+            matching = [e for e in new_results if e["post_id"] == pid]
+            if matching:
+                all_results.append(matching[0])
+
+    return all_results

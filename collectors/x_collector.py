@@ -1,4 +1,4 @@
-"""X (Twitter) collector backed by the Social Fetch API.
+"""X (Twitter) collector backed by the Social Fetch API and Redis Caching.
 
 Mirrors the YouTube collector's two-stage shape:
 
@@ -9,35 +9,22 @@ The discovered tweets are what get stored and analyzed; the `x_profiles`
 table is bookkeeping only, so re-runs never re-pay a credit for a handle
 whose timeline was already pulled.
 
-Credit metering
----------------
-Every Twitter route is a flat 1 credit per successful request -- no tiers and
-no attempt floor -- so the cost of a run is known exactly up front:
-
-    1 credit  discovery
-    1 credit  each timeline page, per profile
-
-Unlike the YouTube Data API's daily unit quota, Social Fetch credits are
-prepaid and never expire or reset, so the ledger below is lifetime
-cumulative and deliberately NOT date-keyed. `GET /v1/balance` is free, so the
-live balance can be read without spending anything.
-
-Billing rules that matter (per the provider docs):
-  * `meta.creditsCharged` is the source of truth, not a local estimate.
-  * Cache hits still bill full price, so a cached response is not free.
-  * `not_found` / `private` outcomes arrive as HTTP 200 and still bill.
-  * `502` / `503` are not charged, so they are retried without spending.
+Credit metering & Caching:
+--------------------------
+* Uses SocialFetch API with credit budgeting and x_credits.json ledger.
+* Integrated with Redis query caching (1 hour TTL) to prevent repeated API charges.
 """
 
+import hashlib
 import json
 import os
 import re
 import time
 from datetime import datetime, timezone
-
+import requests
 from dotenv import load_dotenv
 
-from normalizer.normalizer import normalize_timestamp, stable_post_id
+from normalizer.normalizer import dedupe, normalize_posts, normalize_timestamp, stable_post_id
 
 load_dotenv()
 
@@ -64,6 +51,21 @@ RETRY_BACKOFF_SECONDS = 1
 LEDGER_PATH = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "x_credits.json")
 )
+
+DEFAULT_QUERY_LIMIT = 50
+
+
+def _get_redis_client():
+    """Retrieve Redis client for query caching if available."""
+    try:
+        from task_queue.job_manager import get_job_manager
+        jm = get_job_manager()
+        if jm and jm.is_redis_active and jm._redis_client:
+            return jm._redis_client
+    except Exception:
+        pass
+    return None
+
 
 
 class XCreditsExceededError(Exception):
@@ -141,8 +143,6 @@ def _get(path, params, api_key):
     x402 USDC payment challenges, so only an explicit `insufficient_credits`
     code is reported as an empty balance.
     """
-    import requests
-
     url = f"{API_BASE}{path}"
     headers = {"x-api-key": api_key, "Accept": "application/json"}
 
@@ -186,6 +186,7 @@ def _get(path, params, api_key):
         f"Social Fetch {path} failed after {MAX_RETRIES} attempts "
         f"(last status {last_status}); not charged."
     )
+
 
 
 def fetch_credit_balance(api_key=None):
@@ -669,6 +670,48 @@ def collect_x_for_topic(topic_query, query=None, max_profiles=DEFAULT_MAX_PROFIL
     return collected
 
 
+def collect_x_search(query, topic_query, limit=DEFAULT_QUERY_LIMIT, use_cache=True):
+    """Backwards-compatible wrapper calling SocialFetch topic collection with Redis caching."""
+    cache_key = None
+    r_client = _get_redis_client() if use_cache else None
+    if r_client:
+        try:
+            q_hash = hashlib.md5(f"{query}:{topic_query}:{limit}".encode()).hexdigest()
+            cache_key = f"cache:x_search:{q_hash}"
+            cached_val = r_client.get(cache_key)
+            if cached_val:
+                posts = json.loads(cached_val)
+                print(f"[X collector] Retrieved {len(posts)} cached tweets from Redis for query '{query}'")
+                return posts
+        except Exception:
+            pass
+
+    try:
+        posts = collect_x_for_topic(
+            topic_query=topic_query,
+            query=query,
+            max_profiles=3,
+            max_pages=1,
+            budget_credits=4,
+        )
+        if r_client and cache_key and posts:
+            try:
+                r_client.setex(cache_key, 3600, json.dumps(posts))
+            except Exception:
+                pass
+        return posts
+    except Exception as ex:
+        print(f"[X collector] Notice: {ex}")
+        return []
+
+
+def collect_x_profile(handle, topic_query, limit=DEFAULT_QUERY_LIMIT):
+    """Scrape recent tweets from a specific user profile handle."""
+    clean_handle = handle.lstrip("@")
+    posts, _, _ = collect_x_profile_tweets(clean_handle, topic_query, limit=limit)
+    return posts
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -699,3 +742,4 @@ if __name__ == "__main__":
         refresh=args.refresh,
         dry_run=args.dry_run,
     )
+

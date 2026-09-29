@@ -150,4 +150,9 @@ export interface PipelineStatus {
   current_topic: string | null;
   status_message: string;
   error: string | null;
+  percent?: number;
+  current_step?: string;
+  job_id?: string;
+  redis_active?: boolean;
 }
+

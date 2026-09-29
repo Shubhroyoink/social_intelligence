@@ -9,8 +9,18 @@ DB_PATH = os.path.normpath(
 )
 
 
+def get_connection():
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+    except Exception:
+        pass
+    return conn
+
+
 def create_database():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS posts (
@@ -203,7 +213,7 @@ def _migrate_posts_raw_text(conn):
 
 
 def save_posts(posts):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for p in posts:
         conn.execute("""
@@ -225,7 +235,7 @@ def save_posts(posts):
 
 
 def save_sentiments(sentiments):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for s in sentiments:
         conn.execute("""
@@ -245,7 +255,7 @@ def save_sentiments(sentiments):
 
 
 def save_trends(trends):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for t in trends:
         conn.execute("""
@@ -263,7 +273,7 @@ def save_trends(trends):
 
 
 def get_posts(topic_query=None, platform=None, limit=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = "SELECT * FROM posts WHERE 1=1"
     params = []
@@ -286,7 +296,7 @@ def get_posts(topic_query=None, platform=None, limit=None):
 
 
 def get_sentiments(topic_query=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = "SELECT * FROM sentiments WHERE 1=1"
     params = []
@@ -301,7 +311,7 @@ def get_sentiments(topic_query=None):
 
 
 def get_trends(topic_query=None, limit=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = "SELECT * FROM trends"
     params = []
@@ -321,7 +331,7 @@ def get_trends(topic_query=None, limit=None):
 
 
 def save_emotions(emotions):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for e in emotions:
         conn.execute("""
@@ -340,7 +350,7 @@ def save_emotions(emotions):
 
 
 def get_emotions(topic_query=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = """
         SELECT e.*, p.topic_query, p.created_at
@@ -361,7 +371,7 @@ def get_emotions(topic_query=None):
 
 
 def save_demographics(demographics):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for d in demographics:
         conn.execute("""
@@ -379,7 +389,7 @@ def save_demographics(demographics):
 
 
 def get_demographics(topic_query=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = """
         SELECT d.*, p.topic_query
@@ -399,7 +409,7 @@ def get_demographics(topic_query=None):
 
 
 def get_demographics_summary(topic_query=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
 
     query = """
@@ -443,7 +453,7 @@ def get_demographics_summary(topic_query=None):
 
 
 def save_network_nodes(nodes):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for n in nodes:
         conn.execute("""
@@ -463,7 +473,7 @@ def save_network_nodes(nodes):
 
 
 def save_network_edges(edges):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     for e in edges:
         conn.execute("""
@@ -482,7 +492,7 @@ def save_network_edges(edges):
 
 
 def get_network_nodes(topic_query=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = "SELECT * FROM network_nodes WHERE 1=1"
     params = []
@@ -498,7 +508,7 @@ def get_network_nodes(topic_query=None):
 
 
 def get_network_edges(topic_query=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = "SELECT * FROM network_edges WHERE 1=1"
     params = []
@@ -513,7 +523,7 @@ def get_network_edges(topic_query=None):
 
 
 def save_narrative(narrative):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     conn.execute("""
         INSERT INTO narratives (
@@ -537,7 +547,7 @@ def upsert_youtube_video(video, topic_query, last_fetched_at=None, comments_coun
     refreshed. last_fetched_at/comments_count are set when the caller has
     actually extracted comments for the video.
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
 
     conn.execute("""
         INSERT INTO youtube_videos (
@@ -573,7 +583,7 @@ def upsert_youtube_video(video, topic_query, last_fetched_at=None, comments_coun
 
 def get_fetched_youtube_video_ids(topic_query):
     """Video IDs for a topic whose comments have already been extracted."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
         SELECT video_id FROM youtube_videos
@@ -672,7 +682,7 @@ def get_x_profiles(topic_query=None):
 
 
 def get_narratives(topic_query=None, limit=None):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     query = "SELECT * FROM narratives WHERE 1=1"
     params = []

@@ -19,6 +19,7 @@ from database.db import (
     get_demographics_summary, get_demographics, get_network_nodes, get_network_edges,
     get_narratives
 )
+from task_queue.job_manager import get_job_manager
 
 app = FastAPI(
     title="Social Intelligence API",
@@ -36,19 +37,14 @@ app.add_middleware(
 
 create_database()
 
-pipeline_state = {
-    "is_running": False,
-    "last_run": None,
-    "current_topic": None,
-    "status_message": "Idle",
-    "error": None
-}
+# Active job tracker reference
+job_manager = get_job_manager()
 
 
 class PipelineRunRequest(BaseModel):
     topic: str = "AI Agents"
     channels: Optional[List[str]] = ["@aipost", "@KDnuggets", "@theaiexecutive"]
-    x_queries: Optional[List[str]] = ["AI Agents"]
+    x_queries: Optional[List[str]] = None
     youtube_urls: Optional[List[str]] = None
     youtube_search: bool = True
     yt_max_videos: int = 5
@@ -71,53 +67,15 @@ class PipelineRunRequest(BaseModel):
     skip_narrative: bool = False
 
 
-def _run_pipeline_worker(req: PipelineRunRequest):
-    global pipeline_state
-    pipeline_state["is_running"] = True
-    pipeline_state["current_topic"] = req.topic
-    pipeline_state["status_message"] = f"Running pipeline for '{req.topic}'..."
-    pipeline_state["error"] = None
-
-    try:
-        from run_pipeline import run
-        run(
-            topic_query=req.topic,
-            telegram_channels=req.channels,
-            x_queries=req.x_queries,
-            youtube_urls=req.youtube_urls,
-            telegram_limit=req.telegram_limit,
-            x_max_profiles=req.x_max_profiles,
-            x_max_pages=req.x_max_pages,
-            x_budget_credits=req.x_budget_credits,
-            x_tweets_per_page=req.x_tweets_per_page,
-            x_include_replies=req.x_include_replies,
-            x_refresh=req.x_refresh,
-            x_dry_run=req.x_dry_run,
-            x_require_topic=req.x_require_topic,
-            x_allow_promo=req.x_allow_promo,
-            youtube_search=req.youtube_search,
-            yt_max_videos=req.yt_max_videos,
-            yt_comments=req.yt_comments,
-            do_collect=req.do_collect,
-            do_analyze=req.do_analyze,
-            skip_emotions=req.skip_emotions,
-            skip_demographics=req.skip_demographics,
-            skip_network=req.skip_network,
-            skip_narrative=req.skip_narrative,
-        )
-        pipeline_state["status_message"] = f"Successfully completed pipeline for '{req.topic}'"
-    except Exception as e:
-        pipeline_state["error"] = str(e)
-        pipeline_state["status_message"] = f"Failed: {e}"
-    finally:
-        pipeline_state["is_running"] = False
-        from datetime import datetime, timezone
-        pipeline_state["last_run"] = datetime.now(timezone.utc).isoformat()
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "service": "Social Intelligence API"}
+    return {
+        "status": "ok",
+        "service": "Social Intelligence API",
+        "redis_active": job_manager.is_redis_active
+    }
 
 
 @app.get("/api/topics")
@@ -434,19 +392,124 @@ def list_narratives(topic: Optional[str] = None):
 
 
 @app.post("/api/pipeline/run")
-def trigger_pipeline_run(req: PipelineRunRequest, background_tasks: BackgroundTasks):
-    global pipeline_state
-    if pipeline_state["is_running"]:
-        raise HTTPException(status_code=409, detail="Pipeline is already running for another task.")
+def trigger_pipeline_run(req: PipelineRunRequest):
+    # Check if there is already an active running job for the same topic
+    recent_jobs = job_manager.list_jobs(limit=5)
+    for j in recent_jobs:
+        if j.get("status") in ("running", "queued") and j.get("topic") == req.topic:
+            return {
+                "job_id": j.get("job_id"),
+                "status": j.get("status"),
+                "message": f"Pipeline already running for topic '{req.topic}'",
+                "topic": req.topic,
+                "percent": j.get("percent", 0),
+                "redis_active": job_manager.is_redis_active,
+            }
 
-    background_tasks.add_task(_run_pipeline_worker, req)
+    from run_pipeline import run
+    pipeline_kwargs = {
+        "topic_query": req.topic,
+        "telegram_channels": req.channels,
+        "x_queries": req.x_queries if req.x_queries is not None else [req.topic],
+        "youtube_urls": req.youtube_urls,
+        "telegram_limit": req.telegram_limit,
+        "x_max_profiles": req.x_max_profiles,
+        "x_max_pages": req.x_max_pages,
+        "x_budget_credits": req.x_budget_credits,
+        "x_tweets_per_page": req.x_tweets_per_page,
+        "x_include_replies": req.x_include_replies,
+        "x_refresh": req.x_refresh,
+        "x_dry_run": req.x_dry_run,
+        "x_require_topic": req.x_require_topic,
+        "x_allow_promo": req.x_allow_promo,
+        "youtube_search": req.youtube_search,
+        "yt_max_videos": req.yt_max_videos,
+        "yt_comments": req.yt_comments,
+        "do_collect": req.do_collect,
+        "do_analyze": req.do_analyze,
+        "skip_emotions": req.skip_emotions,
+        "skip_demographics": req.skip_demographics,
+        "skip_network": req.skip_network,
+        "skip_narrative": req.skip_narrative,
+    }
+
+    job_id = job_manager.submit_pipeline_job(
+        topic=req.topic,
+        run_pipeline_fn=run,
+        kwargs=pipeline_kwargs,
+    )
+
     return {
-        "status": "running",
+        "job_id": job_id,
+        "status": "queued",
         "message": f"Pipeline started in background for topic '{req.topic}'",
-        "topic": req.topic
+        "topic": req.topic,
+        "percent": 0,
+        "redis_active": job_manager.is_redis_active,
     }
 
 
 @app.get("/api/pipeline/status")
-def get_pipeline_status():
-    return pipeline_state
+def get_pipeline_status(job_id: Optional[str] = None):
+    """Backward-compatible status endpoint returning live progress percentage and step."""
+    if job_id:
+        job = job_manager.get_job(job_id)
+        if job:
+            return {
+                "is_running": job.get("status") in ("running", "queued"),
+                "last_run": job.get("updated_at"),
+                "current_topic": job.get("topic"),
+                "status_message": job.get("message", "Idle"),
+                "error": job.get("error"),
+                "job_id": job.get("job_id"),
+                "status": job.get("status"),
+                "percent": job.get("percent", 0),
+                "current_step": job.get("current_step", "Idle"),
+                "redis_active": job_manager.is_redis_active,
+            }
+
+    # If no specific job_id, inspect latest job
+    recent = job_manager.list_jobs(limit=1)
+    if recent:
+        latest = recent[0]
+        return {
+            "is_running": latest.get("status") in ("running", "queued"),
+            "last_run": latest.get("updated_at"),
+            "current_topic": latest.get("topic"),
+            "status_message": latest.get("message", "Idle"),
+            "error": latest.get("error"),
+            "job_id": latest.get("job_id"),
+            "status": latest.get("status"),
+            "percent": latest.get("percent", 0),
+            "current_step": latest.get("current_step", "Idle"),
+            "redis_active": job_manager.is_redis_active,
+        }
+
+    return {
+        "is_running": False,
+        "last_run": None,
+        "current_topic": None,
+        "status_message": "Idle",
+        "error": None,
+        "job_id": None,
+        "status": "idle",
+        "percent": 0,
+        "current_step": "Idle",
+        "redis_active": job_manager.is_redis_active,
+    }
+
+
+@app.get("/api/jobs")
+def list_pipeline_jobs(limit: Optional[int] = 20):
+    """Retrieve list of recent pipeline runs."""
+    jobs = job_manager.list_jobs(limit=limit or 20)
+    return {"jobs": jobs, "count": len(jobs), "redis_active": job_manager.is_redis_active}
+
+
+@app.get("/api/jobs/{job_id}")
+def get_pipeline_job(job_id: str):
+    """Retrieve detailed state and progress of a single pipeline job."""
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job

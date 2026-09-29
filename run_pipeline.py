@@ -16,7 +16,7 @@ def collect_data(topic_query, telegram_channels=None, x_queries=None,
                  telegram_limit=100, x_max_profiles=3, x_max_pages=1,
                  x_budget_credits=4, x_tweets_per_page=100,
                  x_include_replies=True, x_refresh=False, x_dry_run=False,
-                 x_require_topic=True, x_allow_promo=False):
+                 x_require_topic=True, x_allow_promo=False, notify_fn=None):
     from collectors.telegram_collector import collect_telegram
     from collectors.x_collector import (
         XCreditsExceededError, collect_x_for_topic, plan_credit_cost,
@@ -25,6 +25,8 @@ def collect_data(topic_query, telegram_channels=None, x_queries=None,
     all_posts = []
 
     if telegram_channels:
+        if notify_fn:
+            notify_fn("Collecting Telegram", 12, f"Collecting from {len(telegram_channels)} Telegram channels...")
         print(f"[Telegram] Collecting from {len(telegram_channels)} channels...")
         try:
             tg_posts = collect_telegram(telegram_channels, topic_query, limit_per_channel=telegram_limit)
@@ -33,13 +35,14 @@ def collect_data(topic_query, telegram_channels=None, x_queries=None,
         except Exception as e:
             print(f"  [WARN] Telegram collection failed: {e}")
 
-    if x_queries:
-        # Each query is a profile discovery (1 credit); the budget covers the
-        # whole run, so it is checked once here rather than per query.
+    effective_x_queries = x_queries if x_queries is not None else [topic_query]
+    if effective_x_queries:
+        if notify_fn:
+            notify_fn("Collecting Twitter/X", 20, f"Collecting tweets for {len(effective_x_queries)} queries via SocialFetch...")
         planned = plan_credit_cost(
-            x_max_profiles, x_max_pages, discovery_queries=len(x_queries)
+            x_max_profiles, x_max_pages, discovery_queries=len(effective_x_queries)
         )
-        print(f"[X] {len(x_queries)} discovery quer(y/ies) x (1 credit + "
+        print(f"[X] {len(effective_x_queries)} discovery quer(y/ies) x (1 credit + "
               f"{x_max_profiles} profile(s) x {x_max_pages} page(s)) "
               f"= {planned} credit(s)")
 
@@ -47,9 +50,9 @@ def collect_data(topic_query, telegram_channels=None, x_queries=None,
         if x_budget_credits is not None and planned > x_budget_credits:
             print(f"  [WARN] Plan of {planned} credits exceeds the budget of "
                   f"{x_budget_credits}; skipping X collection.")
-            x_queries = []
+            effective_x_queries = []
 
-        for query in x_queries:
+        for query in effective_x_queries:
             try:
                 x_posts = collect_x_for_topic(
                     topic_query,
@@ -113,22 +116,43 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
         yt_budget_units=2000, yt_refresh=False,
         do_collect=True, do_analyze=True, window_size_hours=24,
         skip_emotions=False, skip_demographics=False, skip_network=False,
-        skip_narrative=False):
+        skip_narrative=False, progress_callback=None):
+    
+    def _notify(step, pct, msg):
+        if progress_callback and callable(progress_callback):
+            try:
+                progress_callback(step, pct, msg)
+            except Exception:
+                pass
+
+    _notify("Initializing", 5, f"Initializing pipeline for topic '{topic_query}'")
     create_database()
 
     if do_collect:
         raw = collect_data(
-            topic_query, telegram_channels, x_queries, telegram_limit,
-            x_max_profiles, x_max_pages, x_budget_credits, x_tweets_per_page,
-            x_include_replies, x_refresh, x_dry_run, x_require_topic,
-            x_allow_promo,
+            topic_query=topic_query,
+            telegram_channels=telegram_channels,
+            x_queries=x_queries,
+            telegram_limit=telegram_limit,
+            x_max_profiles=x_max_profiles,
+            x_max_pages=x_max_pages,
+            x_budget_credits=x_budget_credits,
+            x_tweets_per_page=x_tweets_per_page,
+            x_include_replies=x_include_replies,
+            x_refresh=x_refresh,
+            x_dry_run=x_dry_run,
+            x_require_topic=x_require_topic,
+            x_allow_promo=x_allow_promo,
+            notify_fn=_notify,
         )
 
         if youtube_urls:
+            _notify("Collecting YouTube", 25, f"Fetching comments from {len(youtube_urls)} YouTube video(s)...")
             yt_raw = collect_youtube_data(topic_query, youtube_urls, youtube_limit)
             raw.extend(yt_raw)
 
         if youtube_search:
+            _notify("Discovering YouTube", 30, f"Discovering YouTube videos for '{topic_query}'...")
             print(f"[YouTube] Discovering up to {yt_max_videos} videos for "
                   f"topic '{topic_query}' (budget cap {yt_budget_units} units)...")
             try:
@@ -144,6 +168,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
             except RuntimeError as e:
                 print(f"  [WARN] YouTube topic search skipped: {e}")
 
+        _notify("Normalizing Data", 40, f"Normalizing and deduplicating {len(raw)} gathered posts...")
         from normalizer.normalizer import normalize_posts, dedupe
         normalized = normalize_posts(raw)
         normalized = dedupe(normalized, key="id")
@@ -154,49 +179,58 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
 
         posts = normalized
     else:
+        _notify("Loading Data", 35, f"Loading existing posts for topic '{topic_query}' from database...")
         posts = get_posts(topic_query=topic_query)
         print(f"Loaded {len(posts)} existing posts from DB")
 
     if not do_analyze:
+        _notify("Completed", 100, "Collection completed. Analysis skipped.")
         print("Analysis skipped. Done.")
         return posts
 
     sentiments = []
     emotions = []
     demographics = []
+    trends = []
     network = None
 
     if posts:
-        print("Running sentiment analysis...")
+        _notify("Parallel Analytics", 60, f"Running parallel Sentiment, Emotion, Demographic & Trend analysis on {len(posts)} posts...")
+        print(f"\n[Parallel Analytics] Processing {len(posts)} posts across models...")
+        from concurrent.futures import ThreadPoolExecutor
         from analytics.sentiment import analyze_posts
-        sentiments = analyze_posts(posts)
-        save_sentiments(sentiments)
-        print(f"  Analyzed sentiment for {len(sentiments)} posts")
-
-    print("Detecting trends...")
-    from analytics.trends import detect_trends, rising_terms
-    trends = detect_trends(posts, topic_query, window_size_hours=window_size_hours)
-    if trends:
-        save_trends(trends)
-    print(f"  Saved {len(trends)} trend observations")
-
-    hot = rising_terms(posts, window_size_hours=window_size_hours)
-    print("\nCurrently rising terms:")
-    for kw, freq in hot[:10]:
-        print(f"   {kw}: {freq}")
-
-    if not skip_emotions and posts:
-        print("\nRunning emotion analysis...")
+        from analytics.trends import detect_trends, rising_terms
         from analytics.emotions import analyze_emotions
-        emotions = analyze_emotions(posts)
+        from analytics.demographics import analyze_demographics
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            fut_sent = executor.submit(analyze_posts, posts)
+            fut_trend = executor.submit(detect_trends, posts, topic_query, window_size_hours=window_size_hours)
+            fut_emot = executor.submit(analyze_emotions, posts) if not skip_emotions else None
+            fut_demo = executor.submit(analyze_demographics, posts) if not skip_demographics else None
+
+            sentiments = fut_sent.result() if fut_sent else []
+            trends = fut_trend.result() if fut_trend else []
+            emotions = fut_emot.result() if fut_emot else []
+            demographics = fut_demo.result() if fut_demo else []
+
+        if sentiments:
+            save_sentiments(sentiments)
+            print(f"  Analyzed sentiment for {len(sentiments)} posts")
+
+        if trends:
+            save_trends(trends)
+            print(f"  Saved {len(trends)} trend observations")
+
+        hot = rising_terms(posts, window_size_hours=window_size_hours)
+        print("\nCurrently rising terms:")
+        for kw, freq in hot[:10]:
+            print(f"   {kw}: {freq}")
+
         if emotions:
             save_emotions(emotions)
             print(f"  Analyzed emotions for {len(emotions)} posts")
 
-    if not skip_demographics and posts:
-        print("\nRunning demographic profiling...")
-        from analytics.demographics import analyze_demographics
-        demographics = analyze_demographics(posts)
         if demographics:
             save_demographics(demographics)
             print(f"  Profiled demographics for {len(demographics)} posts")
@@ -213,6 +247,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
     corpus_trends = get_trends(topic_query=topic_query) or trends
 
     if not skip_network and (corpus_posts or posts):
+        _notify("Network Graphing", 88, "Building interaction graph and identifying KOLs...")
         target_posts = corpus_posts or posts
         target_sentiments = corpus_sentiments or sentiments
         print(f"\nBuilding network graph across full corpus ({len(target_posts)} posts)...")
@@ -228,6 +263,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
         network = corpus_network
 
     if not skip_narrative and (corpus_posts or posts):
+        _notify("Narrative Generation", 94, "Synthesizing executive AI narrative report...")
         target_posts = corpus_posts or posts
         print(f"\nGenerating narrative report across full corpus ({len(target_posts)} posts)...")
         from analytics.narrative import generate_narrative, write_report_file
@@ -252,6 +288,7 @@ def run(topic_query="AI Agents", telegram_channels=None, x_queries=None,
         else:
             print("  No posts to narrate; skipped")
 
+    _notify("Completed", 100, f"Successfully processed pipeline for '{topic_query}'.")
     print("\nPipeline complete.")
     return posts
 
