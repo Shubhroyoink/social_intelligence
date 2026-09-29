@@ -129,7 +129,13 @@ export interface PipelineRunRequest {
   yt_max_videos?: number;
   yt_comments?: number;
   telegram_limit?: number;
-  x_limit?: number;
+  x_max_profiles?: number;
+  x_max_pages?: number;
+  x_budget_credits?: number;
+  x_tweets_per_page?: number;
+  x_include_replies?: boolean;
+  x_refresh?: boolean;
+  x_dry_run?: boolean;
   do_collect?: boolean;
   do_analyze?: boolean;
   skip_emotions?: boolean;

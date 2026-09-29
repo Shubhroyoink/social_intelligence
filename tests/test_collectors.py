@@ -10,23 +10,42 @@ import pytest
 
 import collectors.x_collector as x_collector
 import collectors.youtube_collector as youtube_collector
-from normalizer.normalizer import normalize_posts, normalize_timestamp
+from normalizer.normalizer import normalize_posts
+
+
+def _fake_tweets_payload(tweets, lookup_status="found", next_cursor=None):
+    """Minimal Social Fetch timeline envelope."""
+    return {
+        "data": {
+            "lookupStatus": lookup_status,
+            "profile": {"handle": "alice", "displayName": "Alice"},
+            "tweets": tweets,
+            "page": {"hasMore": bool(next_cursor), "nextCursor": next_cursor},
+        },
+        "meta": {"creditsCharged": 1},
+    }
 
 
 class TestXCollectorIds:
+    """Social Fetch returns real tweet ids, but the mapper must still fall back
+    to a deterministic content hash when one is missing."""
+
     def test_missing_id_gets_stable_content_hash(self, monkeypatch):
-        class FakeNitter:
-            def get_tweets(self, query, mode, number):
-                return {"tweets": [
-                    {"text": "tweet one about AI agents"},
-                    {"id": None, "text": "tweet two about AI agents"},
-                    {"id": 123, "text": "tweet three about AI agents"},
-                    {"id": "", "text": "tweet four about AI agents"},
-                ]}
+        tweets = [
+            {"id": "1", "text": "tweet one about AI agents"},
+            {"id": None, "text": "tweet two about AI agents"},
+            {"id": 123, "text": "tweet three about AI agents"},
+            {"id": "", "text": "tweet four about AI agents"},
+        ]
+        for t in tweets:
+            t["author"] = {"handle": "alice", "platformUserId": "u1"}
 
-        monkeypatch.setattr(x_collector, "Nitter", FakeNitter)
-        posts = x_collector.collect_x_search("AI Agents", "AI Agents")
+        monkeypatch.setattr(
+            x_collector, "_get", lambda *a, **k: _fake_tweets_payload(tweets)
+        )
+        posts, status, _ = x_collector.collect_x_profile_tweets("alice", "AI Agents", api_key="k")
 
+        assert status == "found"
         ids = [p["id"] for p in posts]
         assert len(ids) == 4
         # Never a literal "None" id (the old collapse-to-one-row bug).
@@ -36,22 +55,151 @@ class TestXCollectorIds:
         assert ids[3].startswith("x_")
         # Truthy platform id used verbatim.
         assert ids[2] == "x_123"
-        # Same content -> same id across independent collectors.
-        other = x_collector.collect_x_search("AI Agents", "AI Agents")
+        # Same content -> same id across independent collections.
+        other, _, _ = x_collector.collect_x_profile_tweets("alice", "AI Agents", api_key="k")
         assert other[1]["id"] == ids[1]
         assert other[3]["id"] == ids[3]
 
     def test_distinct_texts_receive_distinct_ids(self, monkeypatch):
-        class FakeNitter:
-            def get_tweets(self, query, mode, number):
-                return {"tweets": [
-                    {"text": "unique text alpha"},
-                    {"text": "unique text beta"},
-                ]}
-
-        monkeypatch.setattr(x_collector, "Nitter", FakeNitter)
-        posts = x_collector.collect_x_search("AI Agents", "AI Agents")
+        tweets = [
+            {"id": None, "text": "unique text alpha",
+             "author": {"handle": "alice"}},
+            {"id": None, "text": "unique text beta",
+             "author": {"handle": "alice"}},
+        ]
+        monkeypatch.setattr(
+            x_collector, "_get", lambda *a, **k: _fake_tweets_payload(tweets)
+        )
+        posts, _, _ = x_collector.collect_x_profile_tweets("alice", "AI Agents", api_key="k")
         assert len({p["id"] for p in posts}) == 2
+
+    def test_blank_tweets_are_dropped(self, monkeypatch):
+        tweets = [
+            {"id": "1", "text": "keep me", "author": {"handle": "alice"}},
+            {"id": "2", "text": "   ", "author": {"handle": "alice"}},
+            {"id": "3", "text": "no author", "author": {}},
+        ]
+        monkeypatch.setattr(
+            x_collector, "_get", lambda *a, **k: _fake_tweets_payload(tweets)
+        )
+        posts, _, _ = x_collector.collect_x_profile_tweets("alice", "AI Agents", api_key="k")
+        assert [p["id"] for p in posts] == ["x_1"]
+
+
+class TestXCollectorSchemaMapping:
+    def test_fields_map_onto_uniform_schema(self, monkeypatch):
+        tweets = [{
+            "id": "1800000000000000001",
+            "text": "Shipping agents with @bob today",
+            "createdAt": "2026-08-01T10:00:00Z",
+            "inReplyToStatusId": "1700000000000000009",
+            "author": {"handle": "alice", "platformUserId": "999"},
+            "metrics": {"likes": 12, "retweets": 3, "replies": 1, "views": 500},
+        }]
+        monkeypatch.setattr(
+            x_collector, "_get", lambda *a, **k: _fake_tweets_payload(tweets)
+        )
+        posts, _, _ = x_collector.collect_x_profile_tweets("@alice", "AI Agents", api_key="k")
+
+        post = posts[0]
+        assert post["id"] == "x_1800000000000000001"
+        assert post["platform"] == "x"
+        # Bare handle, "@"-prefixed -- never the display name.
+        assert post["author_handle"] == "@alice"
+        assert post["author_id"] == "999"
+        assert post["created_at"] == "2026-08-01T10:00:00+00:00"
+        # Real reply parent, platform-prefixed so it resolves against post
+        # `id` in analytics/network.py, same convention as yt_/channel_.
+        assert post["parent_id"] == "x_1700000000000000009"
+        assert post["topic_query"] == "AI Agents"
+        assert post["reactions"] == 12
+        assert post["shares"] == 3
+        assert post["replies"] == 1
+        assert post["views"] == 500
+
+    def test_include_replies_is_requested_by_default(self, monkeypatch):
+        seen = {}
+
+        def fake_get(path, params, api_key):
+            seen.update(params)
+            return _fake_tweets_payload([])
+
+        monkeypatch.setattr(x_collector, "_get", fake_get)
+        x_collector.collect_x_profile_tweets("alice", "AI Agents", api_key="k")
+
+        assert seen["includeReplies"] == "true"
+        assert seen["limit"] == 100
+
+    def test_limit_is_capped_at_api_maximum(self, monkeypatch):
+        seen = {}
+
+        def fake_get(path, params, api_key):
+            seen.update(params)
+            return _fake_tweets_payload([])
+
+        monkeypatch.setattr(x_collector, "_get", fake_get)
+        x_collector.collect_x_profile_tweets(
+            "alice", "AI Agents", limit=5000, api_key="k"
+        )
+        assert seen["limit"] == 100
+
+    def test_follows_cursor_across_pages(self, monkeypatch):
+        pages = [
+            _fake_tweets_payload(
+                [{"id": "1", "text": "page one", "author": {"handle": "alice"}}],
+                next_cursor="cur2",
+            ),
+            _fake_tweets_payload(
+                [{"id": "2", "text": "page two", "author": {"handle": "alice"}}],
+            ),
+        ]
+        cursors = []
+
+        def fake_get(path, params, api_key):
+            cursors.append(params.get("cursor"))
+            return pages[len(cursors) - 1]
+
+        monkeypatch.setattr(x_collector, "_get", fake_get)
+        posts, _, _ = x_collector.collect_x_profile_tweets(
+            "alice", "AI Agents", max_pages=2, api_key="k"
+        )
+
+        assert [p["id"] for p in posts] == ["x_1", "x_2"]
+        assert cursors == [None, "cur2"]
+
+    def test_max_pages_caps_requests(self, monkeypatch):
+        calls = []
+
+        def fake_get(path, params, api_key):
+            calls.append(path)
+            return _fake_tweets_payload(
+                [{"id": "1", "text": "t", "author": {"handle": "alice"}}],
+                next_cursor="more",
+            )
+
+        monkeypatch.setattr(x_collector, "_get", fake_get)
+        x_collector.collect_x_profile_tweets(
+            "alice", "AI Agents", max_pages=2, api_key="k"
+        )
+        assert len(calls) == 2
+
+    def test_private_profile_yields_nothing_but_reports_status(self, monkeypatch):
+        monkeypatch.setattr(
+            x_collector, "_get",
+            lambda *a, **k: _fake_tweets_payload([], lookup_status="private"),
+        )
+        posts, status, _ = x_collector.collect_x_profile_tweets(
+            "secretco", "AI Agents", api_key="k"
+        )
+        # Paid for, empty -- the caller caches it so it is never re-billed.
+        assert posts == []
+        assert status == "private"
+
+    def test_missing_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("SOCIALFETCH_API_KEY", raising=False)
+        with pytest.raises(RuntimeError, match="SOCIALFETCH_API_KEY"):
+            x_collector.discover_x_profiles("AI Agents")
+
 
 
 class TestYouTubeCollectorIds:
@@ -112,23 +260,6 @@ class TestYouTubeCollectorIds:
             youtube_collector.collect_youtube_comments(
                 "https://www.youtube.com/watch?v=VID123", "AI Agents"
             )
-
-
-class TestXCollectorTimestamps:
-    def test_created_at_uses_shared_normalizer(self, monkeypatch):
-        class FakeNitter:
-            def get_tweets(self, query, mode, number):
-                return {"tweets": [
-                    {"text": "a tweet", "timestamp": 1783000000,
-                     "user": {"name": "alice"}},
-                    {"text": "another tweet", "timestamp": "2026-08-01 10:00:00",
-                     "user": {"name": "bob"}},
-                ]}
-
-        monkeypatch.setattr(x_collector, "Nitter", FakeNitter)
-        posts = x_collector.collect_x_search("AI Agents", "AI Agents")
-        assert posts[0]["created_at"] == normalize_timestamp(1783000000)
-        assert posts[1]["created_at"] == "2026-08-01T10:00:00+00:00"
 
 
 class TestYouTubeUrlValidation:

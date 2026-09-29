@@ -13,5 +13,6 @@ build/
 .test_tmp/
 .pytest_cache/
 youtube_quota.json
+x_credits.json
 node_modules/
 frontend/node_modules/

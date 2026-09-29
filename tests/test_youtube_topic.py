@@ -172,7 +172,6 @@ class TestYouTubePipelineIntegration:
             x_queries=[],
             youtube_urls=None,
             telegram_limit=1,
-            x_limit=1,
             youtube_search=True,
             do_collect=True,
             do_analyze=False,

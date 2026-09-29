@@ -11,7 +11,11 @@ interface PipelineModalProps {
 export const PipelineModal: React.FC<PipelineModalProps> = ({ isOpen, onClose, onTriggerSuccess }) => {
   const [topic, setTopic] = useState('Gen AI');
   const [channels, setChannels] = useState('@aipost, @KDnuggets, @theaiexecutive');
-  const [xQueries, setXQueries] = useState('Gen AI, LLM');
+  const [xQueries, setXQueries] = useState('Gen AI');
+  const [xMaxProfiles, setXMaxProfiles] = useState(3);
+  const [xMaxPages, setXMaxPages] = useState(1);
+  const [xBudgetCredits, setXBudgetCredits] = useState(4);
+  const [xDryRun, setXDryRun] = useState(false);
   const [youtubeSearch, setYoutubeSearch] = useState(true);
   const [ytMaxVideos, setYtMaxVideos] = useState(5);
   const [ytComments, setYtComments] = useState(100);
@@ -21,6 +25,12 @@ export const PipelineModal: React.FC<PipelineModalProps> = ({ isOpen, onClose, o
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  // Social Fetch bills 1 credit per discovery query plus 1 per profile page.
+  // Computed here so the operator sees the cost before committing to a run.
+  const xQueryCount = xQueries.split(',').map((q) => q.trim()).filter(Boolean).length;
+  const xPlannedCost = xQueryCount * (1 + xMaxProfiles * xMaxPages);
+  const xOverBudget = xPlannedCost > xBudgetCredits;
 
   const handleRun = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +53,10 @@ export const PipelineModal: React.FC<PipelineModalProps> = ({ isOpen, onClose, o
         topic: topic.trim() || 'Gen AI',
         channels: channelList.length > 0 ? channelList : undefined,
         x_queries: xQueryList.length > 0 ? xQueryList : undefined,
+        x_max_profiles: Number(xMaxProfiles),
+        x_max_pages: Number(xMaxPages),
+        x_budget_credits: Number(xBudgetCredits),
+        x_dry_run: xDryRun,
         youtube_search: youtubeSearch,
         yt_max_videos: Number(ytMaxVideos),
         yt_comments: Number(ytComments),
@@ -111,18 +125,75 @@ export const PipelineModal: React.FC<PipelineModalProps> = ({ isOpen, onClose, o
             />
           </div>
 
-          {/* X Queries */}
-          <div>
-            <label className="block text-xs font-black uppercase text-black">
-              X (Twitter) Search Queries (comma-separated)
-            </label>
-            <input
-              type="text"
-              value={xQueries}
-              onChange={(e) => setXQueries(e.target.value)}
-              placeholder="Gen AI, LLM"
-              className="mt-1 w-full rounded-lg border-2 border-black bg-white px-3 py-2 text-xs font-bold text-black shadow-neo-sm focus:bg-neutral-100 focus:outline-none"
-            />
+          {/* X (Twitter) via Social Fetch */}
+          <div className="rounded-lg border-2 border-black bg-neutral-50 p-3 shadow-neo-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-black">Social Fetch API</span>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-black cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={xDryRun}
+                  onChange={(e) => setXDryRun(e.target.checked)}
+                  className="h-4 w-4 rounded border-2 border-black text-black focus:ring-black"
+                />
+                <span>Dry Run (no credits)</span>
+              </label>
+            </div>
+            <div className="mt-3">
+              <label className="block text-[11px] font-black uppercase text-neutral-700">
+                Profile Discovery Queries (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={xQueries}
+                onChange={(e) => setXQueries(e.target.value)}
+                placeholder="Gen AI"
+                className="mt-1 w-full rounded-lg border-2 border-black bg-white px-3 py-2 text-xs font-bold text-black shadow-neo-sm focus:bg-neutral-100 focus:outline-none"
+              />
+              <p className="mt-1 text-[11px] font-semibold text-neutral-600">
+                Each query finds related X profiles; their tweets are then collected and analyzed.
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-black uppercase text-neutral-700">Max Profiles</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={xMaxProfiles}
+                  onChange={(e) => setXMaxProfiles(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border-2 border-black bg-white px-2.5 py-1.5 text-xs font-bold text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase text-neutral-700">Pages / Profile</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={xMaxPages}
+                  onChange={(e) => setXMaxPages(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border-2 border-black bg-white px-2.5 py-1.5 text-xs font-bold text-black"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase text-neutral-700">Credit Budget</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={xBudgetCredits}
+                  onChange={(e) => setXBudgetCredits(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border-2 border-black bg-white px-2.5 py-1.5 text-xs font-bold text-black"
+                />
+              </div>
+            </div>
+            <p className={`mt-2 text-[11px] font-bold ${xOverBudget ? 'text-red-600' : 'text-neutral-600'}`}>
+              Plan: ~{xPlannedCost} credit{xPlannedCost === 1 ? '' : 's'} (1 per query + 1 per profile page)
+              {' '}· up to ~{Math.min(xQueryCount * xMaxProfiles * xMaxPages * 100, xPlannedCost * 100)} tweets
+              {xOverBudget && ' — over budget, X collection will be skipped'}
+            </p>
           </div>
 
           {/* YouTube Settings */}

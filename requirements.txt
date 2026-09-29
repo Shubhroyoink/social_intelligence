@@ -1,6 +1,6 @@
 telethon==1.44.0
 python-dotenv==1.2.3
-ntscraper==0.3.8
+requests
 pandas==2.2.3
 numpy==1.26.4
 transformers==4.46.3

@@ -78,7 +78,7 @@ Copy `.env.example` to `.env` and fill in your keys.
 - `LLM_API_KEY` — optional Google Gemini key from https://aistudio.google.com/apikey, used for the narrative report. If unset, the report falls back to a deterministic template.
 - `LLM_MODEL` — optional Gemini model override (default `gemini-3.5-flash`; `gemini-2.5-flash` is retired for new API users).
 
-The X collector (via Nitter) needs no keys.
+- `SOCIALFETCH_API_KEY` — Social Fetch API key from https://app.socialfetch.dev (required for X collection). Collection is metered: discovery costs 1 credit, each profile timeline page costs 1 credit, and the default run (`1 + 3 profiles`) is capped at 4 credits. The API accepts `limit=100` but a live run returned 20-22 tweets per profile page, so budget roughly **~20 tweets per credit**. The free 100-credit grant is tracked in a gitignored, lifetime-cumulative `x_credits.json` and never silently refills.
 
 ## What it produces
 
@@ -89,7 +89,7 @@ The X collector (via Nitter) needs no keys.
 ## Architecture
 
 ```
-collectors/        Telegram (Telethon), X (Nitter) and YouTube (Data API v3) scrapers
+collectors/        Telegram (Telethon), X (Social Fetch) and YouTube (Data API v3) scrapers
 normalizer/        Text cleaning, dedup, tokenization
 analytics/         Sentiment + emotion (HuggingFace transformers), demographics,
                    trend detection (TF-IDF), network analysis (NetworkX),
@@ -107,8 +107,9 @@ The DB path is anchored to the project root, so the pipeline and the dashboard a
 
 - **Sentiment/emotion models download on first run** — slow startup until cached; text is truncated to 512 tokens before analysis.
 - **YouTube discovery is incremental and quota-aware** — per-run cap `--yt-budget-units` (default 2000 units ≈ 5 videos/topic) plus a daily ledger; a `403 quotaExceeded` aborts remaining videos with a clear message. `search.list` costs a flat 100 units; `commentThreads` ≈ 1 + items.
+- **X collection is metered and best-effort** — `--x-queries` are profile *discovery* queries, not tweet searches. Each profile yields **~20 tweets for 1 credit** in practice; `private`/`not_found` profiles bill and return nothing, which is why pulled handles are cached in `x_profiles` and skipped free on re-runs. `--x-dry-run` prints the exact plan and cost without spending.
+- **X results are relevance-filtered, because discovery returns promoters** — a live "AI Agents" run surfaced giveaway/token accounts and ~48% of the collected tweets were promotional. Two filters run in `collectors/x_collector.py`: a **pre-spend** filter drops profiles whose name/bio lack a topic term or carry promo markers (a rejected profile costs **0 credits** instead of 1), and a **per-tweet** filter drops giveaway/airdrop/presale posts. A profile whose timeline is ≥50% promo is dropped entirely but still cached, so it is never re-billed. Both are heuristics that can over-filter: `--x-no-require-topic` relaxes the topic requirement and `--x-allow-promo` disables the promo filter.
 - **Telegram auth** — the `.session` file is created on first collection; delete it to re-authenticate.
-- **Nitter is fragile** — X collection may silently return empty results if the Nitter instances are down.
 
 ## Testing
 

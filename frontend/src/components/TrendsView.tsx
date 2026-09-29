@@ -22,7 +22,7 @@ export const TrendsView: React.FC<TrendsViewProps> = ({
   const keywordTimeline = trendsData?.keyword_timelines?.[activeKeyword] || [];
 
   const timelineDates = keywordTimeline.map((item) => item.window_start || '');
-  const timelineFreqs = keywordTimeline.map((item) => item.frequency || item.count || 0);
+  const timelineFreqs = keywordTimeline.map((item) => item.frequency || 0);
 
   const trendPlotlyData: Plotly.Data[] = [
     {

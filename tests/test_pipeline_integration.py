@@ -89,3 +89,47 @@ def test_cleaned_text_stored_without_mentions_but_raw_kept():
     normalized = normalize_posts(RAW_POSTS)[0]
     assert "@bob" not in normalized["text"]
     assert "@bob" in normalized["raw_text"]
+
+
+def test_no_collect_runs_network_and_narrative_on_full_corpus(mock_sentiment, mock_emotions):
+    import run_pipeline
+
+    multi_posts = [
+        {
+            "id": "tg_1", "platform": "telegram", "author_id": "c1", "author_handle": "@aipost",
+            "text": "Telegram post about AI agents", "raw_text": "Telegram post about AI agents",
+            "created_at": "2026-08-01T10:00:00+00:00", "collected_at": "2026-08-01T11:00:00+00:00",
+            "parent_id": None, "topic_query": "AI Agents", "reactions": 5, "shares": 1,
+            "replies": 0, "views": 100,
+        },
+        {
+            "id": "yt_1", "platform": "youtube", "author_id": "u_yt", "author_handle": "@youtuber",
+            "text": "YouTube comment on AI agents cc @aipost", "raw_text": "YouTube comment on AI agents cc @aipost",
+            "created_at": "2026-08-01T12:00:00+00:00", "collected_at": "2026-08-01T13:00:00+00:00",
+            "parent_id": None, "topic_query": "AI Agents", "reactions": 2, "shares": 0,
+            "replies": 0, "views": 0,
+        },
+        {
+            "id": "x_1", "platform": "x", "author_id": "u_x", "author_handle": "@twitteruser",
+            "text": "X post about AI agents cc @youtuber", "raw_text": "X post about AI agents cc @youtuber",
+            "created_at": "2026-08-01T14:00:00+00:00", "collected_at": "2026-08-01T15:00:00+00:00",
+            "parent_id": None, "topic_query": "AI Agents", "reactions": 10, "shares": 2,
+            "replies": 1, "views": 500,
+        },
+    ]
+    db.save_posts(multi_posts)
+
+    posts = run_pipeline.run(
+        topic_query="AI Agents",
+        do_collect=False,
+        do_analyze=True,
+    )
+    assert len(posts) == 3
+    nodes = db.get_network_nodes(topic_query="AI Agents")
+    assert len(nodes) == 3
+    narratives = db.get_narratives(topic_query="AI Agents")
+    assert len(narratives) >= 1
+    report = narratives[0]["report_markdown"]
+    assert "telegram" in report
+    assert "youtube" in report
+    assert "x" in report
